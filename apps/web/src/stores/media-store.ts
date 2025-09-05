@@ -12,6 +12,7 @@ export interface MediaItem {
   file: File;
   url?: string; // Object URL for preview
   thumbnailUrl?: string; // For video thumbnails
+  extractedAudioUrl?: string; // For extracted audio from video
   duration?: number; // For video/audio duration
   width?: number; // For video/image width
   height?: number; // For video/image height

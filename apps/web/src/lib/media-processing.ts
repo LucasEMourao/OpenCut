@@ -6,7 +6,7 @@ import {
   getImageDimensions,
   type MediaItem,
 } from "@/stores/media-store";
-import { generateThumbnail, getVideoInfo } from "./ffmpeg-utils";
+import { generateThumbnail, getVideoInfo, extractAudio } from "./ffmpeg-utils";
 
 export interface ProcessedMediaItem extends Omit<MediaItem, "id"> {}
 
@@ -30,6 +30,7 @@ export async function processMediaFiles(
 
     const url = URL.createObjectURL(file);
     let thumbnailUrl: string | undefined;
+    let extractedAudioUrl: string | undefined;
     let duration: number | undefined;
     let width: number | undefined;
     let height: number | undefined;
@@ -52,6 +53,10 @@ export async function processMediaFiles(
 
           // Generate thumbnail using FFmpeg
           thumbnailUrl = await generateThumbnail(file, 1);
+
+          // Extract audio from video
+          const audioBlob = await extractAudio(file);
+          extractedAudioUrl = URL.createObjectURL(audioBlob);
         } catch (error) {
           console.warn(
             "FFmpeg processing failed, falling back to basic processing:",
@@ -76,6 +81,7 @@ export async function processMediaFiles(
         file,
         url,
         thumbnailUrl,
+        extractedAudioUrl,
         duration,
         width,
         height,
