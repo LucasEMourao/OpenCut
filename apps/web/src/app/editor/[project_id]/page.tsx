@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -17,6 +15,8 @@ import { useProjectStore } from "@/stores/project-store";
 import { EditorProvider } from "@/components/editor-provider";
 import { usePlaybackControls } from "@/hooks/use-playback-controls";
 import { Onboarding } from "@/components/onboarding";
+import { useMediaStore } from "@/stores/media-store";
+import { AudioWaveform } from "../../../components/editor/audio-waveform";
 
 export default function Editor() {
   const {
@@ -44,6 +44,11 @@ export default function Editor() {
   const projectId = params.project_id as string;
   const handledProjectIds = useRef<Set<string>>(new Set());
   const isInitializingRef = useRef<boolean>(false);
+
+  const { mediaItems } = useMediaStore();
+  const audioUrl = mediaItems.find(
+    (item) => item.type === "video" && item.extractedAudioUrl
+  )?.extractedAudioUrl;
 
   usePlaybackControls();
 
@@ -214,8 +219,13 @@ export default function Editor() {
               minSize={15}
               maxSize={70}
               onResize={setTimeline}
-              className="min-h-0 px-3 pb-3"
+              className="min-h-0 px-3 pb-3 flex flex-col"
             >
+              {audioUrl && (
+                <div className="py-2">
+                  <AudioWaveform audioUrl={audioUrl} />
+                </div>
+              )}
               <Timeline />
             </ResizablePanel>
           </ResizablePanelGroup>
