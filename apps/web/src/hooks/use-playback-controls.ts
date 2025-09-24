@@ -1,7 +1,11 @@
 import { useEffect, useCallback } from "react";
 import { usePlaybackStore } from "@/stores/playback-store";
 import { useTimelineStore } from "@/stores/timeline-store";
+import { useMediaStore } from "@/stores/media-store";
+import { useProjectStore } from "@/stores/project-store";
 import { toast } from "sonner";
+import { extractAudio } from "@/lib/ffmpeg-utils";
+import { buildDownloadFilename, downloadBlob } from "@/lib/download-utils";
 
 export const usePlaybackControls = () => {
   const { isPlaying, currentTime, play, pause, seek } = usePlaybackStore();
@@ -12,8 +16,9 @@ export const usePlaybackControls = () => {
     splitElement,
     splitAndKeepLeft,
     splitAndKeepRight,
-    separateAudio,
   } = useTimelineStore();
+  const { mediaItems, addMediaItem } = useMediaStore();
+  const { activeProject } = useProjectStore();
 
   const handleSplitSelectedElement = useCallback(() => {
     if (selectedElements.length !== 1) {
@@ -90,20 +95,72 @@ export const usePlaybackControls = () => {
     splitAndKeepRight(trackId, elementId, currentTime);
   }, [selectedElements, tracks, currentTime, splitAndKeepRight]);
 
-  const handleSeparateAudioCallback = useCallback(() => {
+  const handleSeparateAudioCallback = useCallback(async () => {
     if (selectedElements.length !== 1) {
-      toast.error("Select exactly one media element to separate audio");
+      toast.error("Select exactly one media element to export audio");
       return;
     }
 
     const { trackId, elementId } = selectedElements[0];
     const track = tracks.find((t) => t.id === trackId);
+    const element = track?.elements.find((item) => item.id === elementId);
 
-    if (!track || track.type !== "media") {
-      toast.error("Select a media element to separate audio");
+    if (
+      !track ||
+      track.type !== "media" ||
+      !element ||
+      element.type !== "media"
+    ) {
+      toast.error("Select a video clip to export audio");
       return;
     }
 
-    separateAudio(trackId, elementId);
-  }, [selectedElements, tracks, separateAudio]);
+    const mediaItem = mediaItems.find((item) => item.id === element.mediaId);
+
+    if (!mediaItem) {
+      toast.error("Original media file not found");
+      return;
+    }
+
+    const toastId = toast.loading("Extracting audio...");
+
+    try {
+      const audioBlob = await extractAudio(mediaItem.file, "mp3");
+      const filename = buildDownloadFilename(mediaItem.name, "mp3");
+
+      const audioFile = new File([audioBlob], filename, {
+        type: "audio/mpeg",
+      });
+      const audioUrl = URL.createObjectURL(audioFile);
+
+      downloadBlob(audioBlob, filename);
+
+      let successMessage = "Audio exported as MP3";
+
+      if (activeProject) {
+        try {
+          await addMediaItem(activeProject.id, {
+            name: filename,
+            type: "audio",
+            file: audioFile,
+            url: audioUrl,
+            duration:
+              mediaItem.duration ??
+              element.duration - element.trimStart - element.trimEnd,
+          });
+          successMessage = "Audio exported and added to media";
+        } catch (error) {
+          URL.revokeObjectURL(audioUrl);
+          throw error;
+        }
+      } else {
+        URL.revokeObjectURL(audioUrl);
+      }
+
+      toast.success(successMessage, { id: toastId });
+    } catch (error) {
+      console.error("Failed to export audio", error);
+      toast.error("Failed to export audio", { id: toastId });
+    }
+  }, [selectedElements, tracks, mediaItems, addMediaItem, activeProject]);
 };

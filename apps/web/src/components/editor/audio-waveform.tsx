@@ -19,7 +19,7 @@ const AudioWaveform: React.FC<AudioWaveformProps> = ({
 
   useEffect(() => {
     let mounted = true;
-    let ws = wavesurfer.current;
+    const ws = wavesurfer.current;
 
     const initWaveSurfer = async () => {
       if (!waveformRef.current || !audioUrl) return;
@@ -66,7 +66,12 @@ const AudioWaveform: React.FC<AudioWaveformProps> = ({
           }
         });
 
-        newWaveSurfer.on("error", (err) => {
+        newWaveSurfer.on("error", (err: unknown) => {
+          const isAbortError =
+            err instanceof DOMException && err.name === "AbortError";
+
+          if (isAbortError) return;
+
           console.error("WaveSurfer error:", err);
           if (mounted) {
             setError(true);
@@ -76,9 +81,16 @@ const AudioWaveform: React.FC<AudioWaveformProps> = ({
 
         await newWaveSurfer.load(audioUrl);
       } catch (err) {
-        console.error("Failed to initialize WaveSurfer:", err);
+        const isAbortError =
+          err instanceof DOMException && err.name === "AbortError";
+
+        if (!isAbortError) {
+          console.error("Failed to initialize WaveSurfer:", err);
+        }
         if (mounted) {
-          setError(true);
+          if (!isAbortError) {
+            setError(true);
+          }
           setIsLoading(false);
         }
       }

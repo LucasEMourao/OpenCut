@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { env } from "@/env";
 import { baseRateLimit } from "@/lib/rate-limit";
+import type { SoundEffect } from "@/types/sounds";
+import { localSoundLibrary } from "@/data/sounds-library";
 
 const searchParamsSchema = z.object({
   q: z.string().max(500, "Query too long").optional(),
@@ -13,43 +15,6 @@ const searchParamsSchema = z.object({
     .default("downloads"),
   min_rating: z.coerce.number().min(0).max(5).default(3),
   commercial_only: z.coerce.boolean().default(true),
-});
-
-const freesoundResultSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  description: z.string(),
-  url: z.string().url(),
-  previews: z
-    .object({
-      "preview-hq-mp3": z.string().url(),
-      "preview-lq-mp3": z.string().url(),
-      "preview-hq-ogg": z.string().url(),
-      "preview-lq-ogg": z.string().url(),
-    })
-    .optional(),
-  download: z.string().url().optional(),
-  duration: z.number(),
-  filesize: z.number(),
-  type: z.string(),
-  channels: z.number(),
-  bitrate: z.number(),
-  bitdepth: z.number(),
-  samplerate: z.number(),
-  username: z.string(),
-  tags: z.array(z.string()),
-  license: z.string(),
-  created: z.string(),
-  num_downloads: z.number().optional(),
-  avg_rating: z.number().optional(),
-  num_ratings: z.number().optional(),
-});
-
-const freesoundResponseSchema = z.object({
-  count: z.number(),
-  next: z.string().url().nullable(),
-  previous: z.string().url().nullable(),
-  results: z.array(freesoundResultSchema),
 });
 
 const transformedResultSchema = z.object({
@@ -88,13 +53,74 @@ const apiResponseSchema = z.object({
   minRating: z.number().optional(),
 });
 
+type SortKey = z.infer<typeof searchParamsSchema>["sort"];
+
+const COMMERCIAL_LICENSE_KEYWORDS = [
+  "commercial",
+  "royalty",
+  "cc0",
+  "public domain",
+];
+
+function matchesQuery(sound: SoundEffect, query?: string) {
+  if (!query) return true;
+
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+
+  const haystack = [
+    sound.name,
+    sound.description,
+    sound.username,
+    sound.tags.join(" "),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(normalizedQuery);
+}
+
+function isCommercialLicense(license: string) {
+  const normalized = license.toLowerCase();
+  return COMMERCIAL_LICENSE_KEYWORDS.some((keyword) =>
+    normalized.includes(keyword)
+  );
+}
+
+function sortSounds(sounds: SoundEffect[], sort: SortKey) {
+  const sorter: Record<SortKey, (a: SoundEffect, b: SoundEffect) => number> = {
+    downloads: (a, b) => (b.downloads ?? 0) - (a.downloads ?? 0),
+    rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0),
+    created: (a, b) =>
+      new Date(b.created).getTime() - new Date(a.created).getTime(),
+    score: (a, b) =>
+      (b.rating ?? 0) * (b.ratingCount ?? 0) -
+      (a.rating ?? 0) * (a.ratingCount ?? 0),
+  };
+
+  return [...sounds].sort(sorter[sort]);
+}
+
+function getPageLink(request: NextRequest, page: number) {
+  const url = new URL(request.url);
+  url.searchParams.set("page", page.toString());
+  return url.toString();
+}
+
 export async function GET(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for") ?? "anonymous";
-    const { success } = await baseRateLimit.limit(ip);
+    const shouldBypassRateLimit = env.NODE_ENV === "development";
 
-    if (!success) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    if (!shouldBypassRateLimit) {
+      const { success } = await baseRateLimit.limit(ip);
+
+      if (!success) {
+        return NextResponse.json(
+          { error: "Too many requests" },
+          { status: 429 }
+        );
+      }
     }
 
     const { searchParams } = new URL(request.url);
@@ -106,6 +132,7 @@ export async function GET(request: NextRequest) {
       page_size: searchParams.get("page_size") || undefined,
       sort: searchParams.get("sort") || undefined,
       min_rating: searchParams.get("min_rating") || undefined,
+      commercial_only: searchParams.get("commercial_only") || undefined,
     });
 
     if (!validationResult.success) {
@@ -139,101 +166,39 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const baseUrl = "https://freesound.org/apiv2/search/text/";
-
-    // Use score sorting for search queries, downloads for top sounds
-    const sortParam = query
-      ? sort === "score"
-        ? "score"
-        : `${sort}_desc`
-      : `${sort}_desc`;
-
-    const params = new URLSearchParams({
-      query: query || "",
-      token: env.FREESOUND_API_KEY,
-      page: page.toString(),
-      page_size: pageSize.toString(),
-      sort: sortParam,
-      fields:
-        "id,name,description,url,previews,download,duration,filesize,type,channels,bitrate,bitdepth,samplerate,username,tags,license,created,num_downloads,avg_rating,num_ratings",
-    });
-
-    // Always apply sound effect filters (since we're primarily a sound effects search)
-    if (type === "effects" || !type) {
-      params.append("filter", "duration:[* TO 30.0]");
-      params.append("filter", `avg_rating:[${min_rating} TO *]`);
-
-      // Filter by license if commercial_only is true
-      if (commercial_only) {
-        params.append(
-          "filter",
-          'license:("Attribution" OR "Creative Commons 0" OR "Attribution Noncommercial" OR "Attribution Commercial")'
-        );
+    const filteredSounds = localSoundLibrary.filter((sound) => {
+      if (type && sound.type !== type) return false;
+      if (!matchesQuery(sound, query)) return false;
+      if (typeof min_rating === "number" && sound.rating < min_rating) {
+        return false;
       }
 
-      params.append(
-        "filter",
-        "tag:sound-effect OR tag:sfx OR tag:foley OR tag:ambient OR tag:nature OR tag:mechanical OR tag:electronic OR tag:impact OR tag:whoosh OR tag:explosion"
-      );
-    }
+      if (
+        commercial_only &&
+        sound.license &&
+        !isCommercialLicense(sound.license)
+      ) {
+        return false;
+      }
 
-    const response = await fetch(`${baseUrl}?${params.toString()}`);
+      return true;
+    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Freesound API error:", response.status, errorText);
-      return NextResponse.json(
-        { error: "Failed to search sounds" },
-        { status: response.status }
-      );
-    }
+    const sortedSounds = sortSounds(filteredSounds, sort);
+    const startIndex = (page - 1) * pageSize;
+    const paginatedResults = sortedSounds.slice(
+      startIndex,
+      startIndex + pageSize
+    );
 
-    const rawData = await response.json();
-
-    const freesoundValidation = freesoundResponseSchema.safeParse(rawData);
-    if (!freesoundValidation.success) {
-      console.error(
-        "Invalid Freesound API response:",
-        freesoundValidation.error
-      );
-      return NextResponse.json(
-        { error: "Invalid response from Freesound API" },
-        { status: 502 }
-      );
-    }
-
-    const data = freesoundValidation.data;
-
-    const transformedResults = data.results.map((result) => ({
-      id: result.id,
-      name: result.name,
-      description: result.description,
-      url: result.url,
-      previewUrl:
-        result.previews?.["preview-hq-mp3"] ||
-        result.previews?.["preview-lq-mp3"],
-      downloadUrl: result.download,
-      duration: result.duration,
-      filesize: result.filesize,
-      type: result.type,
-      channels: result.channels,
-      bitrate: result.bitrate,
-      bitdepth: result.bitdepth,
-      samplerate: result.samplerate,
-      username: result.username,
-      tags: result.tags,
-      license: result.license,
-      created: result.created,
-      downloads: result.num_downloads || 0,
-      rating: result.avg_rating || 0,
-      ratingCount: result.num_ratings || 0,
-    }));
+    const totalCount = filteredSounds.length;
+    const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 0;
 
     const responseData = {
-      count: data.count,
-      next: data.next,
-      previous: data.previous,
-      results: transformedResults,
+      count: totalCount,
+      next: page < totalPages ? getPageLink(request, page + 1) : null,
+      previous: page > 1 ? getPageLink(request, page - 1) : null,
+      results: paginatedResults,
       query: query || "",
       type: type || "effects",
       page,

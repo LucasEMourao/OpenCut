@@ -22,7 +22,7 @@ export interface SoundEffect {
 }
 
 export interface SavedSound {
-  id: number; // freesound id
+  id: number; // sound identifier from the library
   name: string;
   username: string;
   previewUrl?: string;

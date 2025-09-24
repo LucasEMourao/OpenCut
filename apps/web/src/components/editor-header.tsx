@@ -12,9 +12,9 @@ import {
 import { useTimelineStore } from "@/stores/timeline-store";
 import { HeaderBase } from "./header-base";
 import { formatTimeCode } from "@/lib/time";
-import { useProjectStore } from "@/stores/project-store";
+import { useProjectStore, DEFAULT_CANVAS_SIZE } from "@/stores/project-store";
 import { KeyboardShortcutsHelp } from "./keyboard-shortcuts-help";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +30,22 @@ import { FaDiscord } from "react-icons/fa6";
 import { useTheme } from "next-themes";
 import { usePlaybackStore } from "@/stores/playback-store";
 import { TransitionUpIcon } from "./icons";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
+import { toast } from "sonner";
+import { useMediaStore } from "@/stores/media-store";
+import { downloadBlob } from "@/lib/download-utils";
+import {
+  exportTimelineToMp4,
+  TimelineExportError,
+} from "@/lib/timeline-export";
 
 export function EditorHeader() {
   const { getTotalDuration } = useTimelineStore();
@@ -166,25 +182,93 @@ export function EditorHeader() {
 }
 
 function ExportButton() {
-  const handleExport = () => {
-    // TODO: Implement export functionality
-    // NOTE: This is already being worked on
-    console.log("Export project");
-    window.open("https://youtube.com/watch?v=dQw4w9WgXcQ", "_blank");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportVideo = useCallback(async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    const toastId = toast.loading("Exporting timeline...");
+
+    try {
+      const timelineState = useTimelineStore.getState();
+      const mediaState = useMediaStore.getState();
+      const projectState = useProjectStore.getState();
+
+      const { blob, filename } = await exportTimelineToMp4({
+        tracks: timelineState.getSortedTracks(),
+        mediaItems: mediaState.mediaItems,
+        projectName: projectState.activeProject?.name,
+        canvasSize:
+          projectState.activeProject?.canvasSize ?? DEFAULT_CANVAS_SIZE,
+      });
+
+      downloadBlob(blob, filename);
+      toast.success("Video exported", { id: toastId });
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to export timeline", error);
+      const message =
+        error instanceof TimelineExportError
+          ? error.message
+          : "Failed to export video";
+      toast.error(message, { id: toastId });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [isExporting]);
+
+  const handleDialogChange = (open: boolean) => {
+    if (isExporting) return;
+    setIsDialogOpen(open);
   };
 
   return (
-    <button
-      className="flex items-center gap-1.5 bg-[#38BDF8] text-white rounded-md px-[0.1rem] py-[0.1rem] cursor-pointer hover:brightness-95 transition-all duration-200"
-      onClick={handleExport}
-    >
-      <div className="flex items-center gap-1.5 bg-linear-270 from-[#2567EC] to-[#37B6F7] rounded-[0.8rem] px-4 py-1 relative shadow-[0_1px_3px_0px_rgba(0,0,0,0.45)]">
-        <TransitionUpIcon className="z-50" />
-        <span className="text-[0.875rem] z-50">Export</span>
-        <div className="absolute w-full h-full left-0 top-0 bg-linear-to-t from-white/0 to-white/50 z-10 rounded-[0.8rem] flex items-center justify-center">
-          <div className="absolute w-[calc(100%-4px)] h-[calc(100%-4px)] top-[0.12rem] bg-linear-270 from-[#2567EC] to-[#37B6F7] z-50 rounded-lg"></div>
-        </div>
-      </div>
-    </button>
+    <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
+      <DialogTrigger asChild>
+        <button
+          className="flex items-center gap-1.5 bg-[#38BDF8] text-white rounded-md px-[0.1rem] py-[0.1rem] cursor-pointer hover:brightness-95 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
+          onClick={() => setIsDialogOpen(true)}
+          disabled={isExporting}
+          type="button"
+        >
+          <div className="flex items-center gap-1.5 bg-linear-270 from-[#2567EC] to-[#37B6F7] rounded-[0.8rem] px-4 py-1 relative shadow-[0_1px_3px_0px_rgba(0,0,0,0.45)]">
+            <TransitionUpIcon className="z-50" />
+            <span className="text-[0.875rem] z-50">Export</span>
+            <div className="absolute w-full h-full left-0 top-0 bg-linear-to-t from-white/0 to-white/50 z-10 rounded-[0.8rem] flex items-center justify-center">
+              <div className="absolute w-[calc(100%-4px)] h-[calc(100%-4px)] top-[0.12rem] bg-linear-270 from-[#2567EC] to-[#37B6F7] z-50 rounded-lg" />
+            </div>
+          </div>
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Export timeline</DialogTitle>
+          <DialogDescription>
+            Exports the current timeline to an MP4 file. Export supports a
+            single video track laid out without gaps and an optional single
+            audio track.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            variant="outline"
+            onClick={() => setIsDialogOpen(false)}
+            disabled={isExporting}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleExportVideo}
+            disabled={isExporting}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {isExporting ? "Exporting…" : "Export MP4"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

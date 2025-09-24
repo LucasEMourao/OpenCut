@@ -53,7 +53,12 @@ import { SelectionBox } from "../selection-box";
 import { useSelectionBox } from "@/hooks/use-selection-box";
 import { SnapIndicator } from "../snap-indicator";
 import { SnapPoint } from "@/hooks/use-timeline-snapping";
-import type { DragData, TimelineTrack, TrackType } from "@/types/timeline";
+import type {
+  DragData,
+  TimelineTrack,
+  TrackType,
+  MediaElement,
+} from "@/types/timeline";
 import {
   getTrackHeight,
   getCumulativeHeightBefore,
@@ -62,6 +67,8 @@ import {
   snapTimeToFrame,
 } from "@/constants/timeline-constants";
 import { Slider } from "@/components/ui/slider";
+import { extractAudio } from "@/lib/ffmpeg-utils";
+import { downloadBlob, buildDownloadFilename } from "@/lib/download-utils";
 
 export function Timeline() {
   // Timeline shows all tracks (video, audio, effects) and their elements.
@@ -76,7 +83,6 @@ export function Timeline() {
     setSelectedElements,
     toggleTrackMute,
     dragState,
-    separateAudio,
   } = useTimelineStore();
   const { mediaItems, addMediaItem } = useMediaStore();
   const { activeProject } = useProjectStore();
@@ -947,14 +953,14 @@ function TimelineToolbar({
     splitElement,
     splitAndKeepLeft,
     splitAndKeepRight,
-    separateAudio,
     snappingEnabled,
     toggleSnapping,
     rippleEditingEnabled,
     toggleRippleEditing,
   } = useTimelineStore();
   const { currentTime, duration, isPlaying, toggle } = usePlaybackStore();
-  const { toggleBookmark, isBookmarked } = useProjectStore();
+  const { toggleBookmark, isBookmarked, activeProject } = useProjectStore();
+  const { mediaItems, addMediaItem } = useMediaStore();
 
   // Action handlers
   const handleSplitSelected = () => {
@@ -1046,18 +1052,76 @@ function TimelineToolbar({
     splitAndKeepRight(trackId, elementId, currentTime);
   };
 
-  const handleSeparateAudio = () => {
+  const handleSeparateAudio = async () => {
     if (selectedElements.length !== 1) {
-      toast.error("Select exactly one media element to separate audio");
+      toast.error("Select exactly one media element to export audio");
       return;
     }
+
     const { trackId, elementId } = selectedElements[0];
     const track = tracks.find((t) => t.id === trackId);
-    if (!track || track.type !== "media") {
-      toast.error("Select a media element to separate audio");
+    const element = track?.elements.find((item) => item.id === elementId);
+
+    if (
+      !track ||
+      track.type !== "media" ||
+      !element ||
+      element.type !== "media"
+    ) {
+      toast.error("Select a video clip to export audio");
       return;
     }
-    separateAudio(trackId, elementId);
+
+    const mediaElement = element as MediaElement;
+    const mediaItem = mediaItems.find(
+      (item) => item.id === mediaElement.mediaId
+    );
+
+    if (!mediaItem) {
+      toast.error("Original media file not found");
+      return;
+    }
+
+    const toastId = toast.loading("Extracting audio...");
+
+    try {
+      const audioBlob = await extractAudio(mediaItem.file, "mp3");
+      const filename = buildDownloadFilename(mediaItem.name, "mp3");
+
+      const audioFile = new File([audioBlob], filename, {
+        type: "audio/mpeg",
+      });
+      const audioUrl = URL.createObjectURL(audioFile);
+
+      downloadBlob(audioBlob, filename);
+
+      let successMessage = "Audio exported as MP3";
+
+      if (activeProject) {
+        try {
+          await addMediaItem(activeProject.id, {
+            name: filename,
+            type: "audio",
+            file: audioFile,
+            url: audioUrl,
+            duration:
+              mediaItem.duration ??
+              element.duration - element.trimStart - element.trimEnd,
+          });
+          successMessage = "Audio exported and added to media";
+        } catch (error) {
+          URL.revokeObjectURL(audioUrl);
+          throw error;
+        }
+      } else {
+        URL.revokeObjectURL(audioUrl);
+      }
+
+      toast.success(successMessage, { id: toastId });
+    } catch (error) {
+      console.error("Failed to export audio", error);
+      toast.error("Failed to export audio", { id: toastId });
+    }
   };
 
   const handleDeleteSelected = () => {

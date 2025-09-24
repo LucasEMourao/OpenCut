@@ -143,8 +143,6 @@ interface TimelineStore {
     elementId: string,
     splitTime: number
   ) => void;
-  separateAudio: (trackId: string, elementId: string) => string | null;
-
   // Replace media for an element
   replaceElementMedia: (
     trackId: string,
@@ -1038,70 +1036,6 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
             : track
         )
       );
-    },
-
-    // Extract audio from video element to an audio track  
-    separateAudio: (trackId, elementId) => {
-      const { _tracks } = get();
-      const track = _tracks.find((t) => t.id === trackId);
-      const element = track?.elements.find((c) => c.id === elementId);
-
-      if (!element || track?.type !== "media") return null;
-
-      // Get the media item to access the extracted audio URL
-      const mediaStore = useMediaStore.getState();
-      const mediaItem = mediaStore.mediaItems.find((item) => item.id === (element as MediaElement).mediaId);
-
-      if (!mediaItem || !mediaItem.extractedAudioUrl) return null;
-
-      get().pushHistory();
-
-      // Create a new audio element that references the same media item but will be put on an audio track
-      // The important thing is that it goes to an audio track and the UI will handle it differently
-      const audioElementId = generateUUID();
-
-      // Find existing audio track or prepare to create one
-      const existingAudioTrack = _tracks.find((t) => t.type === "audio");
-
-      if (existingAudioTrack) {
-        // Add audio element to existing audio track
-        updateTracksAndSave(
-          get()._tracks.map((track) =>
-            track.id === existingAudioTrack.id
-              ? {
-                  ...track,
-                  elements: [
-                    ...track.elements,
-                    {
-                      ...element,
-                      id: audioElementId,
-                      name: getElementNameWithSuffix(element.name, "audio"),
-                    },
-                  ],
-                }
-              : track
-          )
-        );
-      } else {
-        // Create new audio track with the audio element in a single atomic update
-        const newAudioTrack: TimelineTrack = {
-          id: generateUUID(),
-          name: "Audio Track",
-          type: "audio",
-          elements: [
-            {
-              ...element,
-              id: audioElementId,
-              name: getElementNameWithSuffix(element.name, "audio"),
-            },
-          ],
-          muted: false,
-        };
-
-        updateTracksAndSave([...get()._tracks, newAudioTrack]);
-      }
-
-      return audioElementId;
     },
 
     // Replace media for an element

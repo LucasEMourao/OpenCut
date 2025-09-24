@@ -2,21 +2,40 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { toBlobURL } from "@ffmpeg/util";
 
 let ffmpeg: FFmpeg | null = null;
+let ffmpegLoadingPromise: Promise<FFmpeg> | null = null;
 
 export const initFFmpeg = async (): Promise<FFmpeg> => {
   if (ffmpeg) return ffmpeg;
+  if (ffmpegLoadingPromise) return ffmpegLoadingPromise;
 
-  ffmpeg = new FFmpeg();
+  ffmpegLoadingPromise = (async () => {
+    try {
+      const instance = new FFmpeg();
 
-  // Use locally hosted files instead of CDN
-  const baseURL = "/ffmpeg";
+      const basePath = "/ffmpeg";
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const baseURL = origin ? `${origin}${basePath}` : basePath;
 
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-  });
+      await instance.load({
+        coreURL: await toBlobURL(
+          `${baseURL}/ffmpeg-core.js`,
+          "text/javascript"
+        ),
+        wasmURL: await toBlobURL(
+          `${baseURL}/ffmpeg-core.wasm`,
+          "application/wasm"
+        ),
+      });
 
-  return ffmpeg;
+      ffmpeg = instance;
+      return instance;
+    } finally {
+      ffmpegLoadingPromise = null;
+    }
+  })();
+
+  return ffmpegLoadingPromise;
 };
 
 export const generateThumbnail = async (
