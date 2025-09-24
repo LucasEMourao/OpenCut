@@ -1040,7 +1040,7 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
       );
     },
 
-    // Extract audio from video element to an audio track
+    // Extract audio from video element to an audio track  
     separateAudio: (trackId, elementId) => {
       const { _tracks } = get();
       const track = _tracks.find((t) => t.id === trackId);
@@ -1048,11 +1048,20 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
 
       if (!element || track?.type !== "media") return null;
 
+      // Get the media item to access the extracted audio URL
+      const mediaStore = useMediaStore.getState();
+      const mediaItem = mediaStore.mediaItems.find((item) => item.id === (element as MediaElement).mediaId);
+
+      if (!mediaItem || !mediaItem.extractedAudioUrl) return null;
+
       get().pushHistory();
+
+      // Create a new audio element that references the same media item but will be put on an audio track
+      // The important thing is that it goes to an audio track and the UI will handle it differently
+      const audioElementId = generateUUID();
 
       // Find existing audio track or prepare to create one
       const existingAudioTrack = _tracks.find((t) => t.type === "audio");
-      const audioElementId = generateUUID();
 
       if (existingAudioTrack) {
         // Add audio element to existing audio track

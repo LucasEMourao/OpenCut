@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -16,7 +18,7 @@ import { EditorProvider } from "@/components/editor-provider";
 import { usePlaybackControls } from "@/hooks/use-playback-controls";
 import { Onboarding } from "@/components/onboarding";
 import { useMediaStore } from "@/stores/media-store";
-import { AudioWaveform } from "../../../components/editor/audio-waveform";
+import AudioWaveform from "../../../components/editor/audio-waveform";
 
 export default function Editor() {
   const {

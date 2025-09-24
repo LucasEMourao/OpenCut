@@ -233,6 +233,21 @@ export function TimelineElement({
       );
     }
 
+    // Special case: video element on audio track with extracted audio - render waveform
+    if (track.type === "audio" && mediaItem.extractedAudioUrl) {
+      return (
+        <div className="w-full h-full flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <AudioWaveform
+              audioUrl={mediaItem.extractedAudioUrl}
+              height={24}
+              className="w-full"
+            />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <span className="text-xs text-foreground/80 truncate">
         {element.name}

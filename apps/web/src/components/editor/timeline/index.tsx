@@ -76,6 +76,7 @@ export function Timeline() {
     setSelectedElements,
     toggleTrackMute,
     dragState,
+    separateAudio,
   } = useTimelineStore();
   const { mediaItems, addMediaItem } = useMediaStore();
   const { activeProject } = useProjectStore();
