@@ -69,6 +69,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { extractAudio } from "@/lib/ffmpeg-utils";
 import { downloadBlob, buildDownloadFilename } from "@/lib/download-utils";
+import { detectAutomaticCuts } from "@/lib/ai/autoCut";
 
 export function Timeline() {
   // Timeline shows all tracks (video, audio, effects) and their elements.
@@ -1298,6 +1299,15 @@ function TimelineToolbar({
             <TooltipContent>
               {currentBookmarked ? "Remove bookmark" : "Add bookmark"}
             </TooltipContent>
+          </Tooltip>
+          <div className="w-px h-6 bg-border mx-1" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="text" size="icon" onClick={detectAutomaticCuts}>
+                <Scissors className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Detect automatic cuts with AI</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>

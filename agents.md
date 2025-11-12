@@ -14,9 +14,15 @@ Este arquivo rastreia o progresso do desenvolvimento do editor de vídeo simplif
 - **Passo 3 (Extração de Áudio - UI):** A interface do editor foi modificada para exibir o resultado da extração de áudio.
     - O componente `<AudioWaveform />` foi adicionado à página do editor.
     - A lógica foi implementada para obter a `extractedAudioUrl` do vídeo carregado e passá-la para o componente de forma de onda.
+- **Passo 4 (Detecção Automática de Cortes com IA):** Implementada funcionalidade avançada de edição assistida por IA:
+    - Criado módulo `apps/web/src/lib/ai/autoCut.ts` com a função principal `detectAutomaticCuts()`.
+    - Implementada integração com API do Gemini para análise de áudio e identificação de cortes ideais.
+    - Adicionado botão "Detect Automatic Cuts" à barra de ferramentas do timeline.
+    - Implementada lógica para extrair áudio dos elementos selecionados e aplicar os cortes identificados pela IA ao timeline.
+    - Garantida manutenção do histórico de desfazer/refazer e limpeza adequada de recursos.
 
 ## Status Atual
 
 **Próximo Passo:** Teste da Funcionalidade.
 
-Finalizamos a implementação da extração de áudio e da exibição da sua forma de onda. O próximo passo é executar a aplicação e testar o fluxo completo: fazer o upload de um vídeo e verificar se a forma de onda aparece corretamente na tela do editor.
+Finalizamos a implementação da extração de áudio, exibição da forma de onda e detecção automática de cortes com IA. O próximo passo é executar a aplicação e testar o fluxo completo: selecionar elementos de mídia, aplicar a detecção automática de cortes com IA e verificar se os trechos otimizados são adicionados corretamente ao timeline.

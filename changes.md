@@ -18,3 +18,11 @@
 - Criamos utilitário `timeline-export.ts` com validações (apenas uma faixa de vídeo/audio sem gaps) e mensagens claras.
 
 Tudo isso está em TypeScript no app Next.js (ramo `simplified-editor`).
+
+### 4. Detecção Automática de Cortes com IA
+- Criado módulo `apps/web/src/lib/ai/autoCut.ts` com funcionalidades de análise automática de áudio.
+- Implementada integração com API do Gemini para identificação de segmentos de áudio de alta qualidade.
+- Adicionado botão "Detect Automatic Cuts" ao toolbar do timeline para ativar a funcionalidade.
+- Implementada lógica para extrair áudio de elementos selecionados e aplicar cortes sugeridos pela IA ao timeline.
+- Adicionada lógica para processar e inserir automaticamente os trechos otimizados na linha do tempo.
+- Garantida compatibilidade com sistema de desfazer/refazer e limpeza adequada de recursos.
