@@ -43,8 +43,9 @@ interface MediaStore {
 
 // Helper function to determine file type
 export const getFileType = (file: File): MediaType | null => {
-  const { type } = file;
+  const { type, name } = file;
 
+  // First check using MIME type from the browser
   if (type.startsWith("image/")) {
     return "image";
   }
@@ -52,6 +53,44 @@ export const getFileType = (file: File): MediaType | null => {
     return "video";
   }
   if (type.startsWith("audio/")) {
+    return "audio";
+  }
+
+  // Fallback to extension-based detection in case MIME type is not reliable
+  const lowerCaseName = name.toLowerCase();
+  if (
+    lowerCaseName.endsWith('.jpg') ||
+    lowerCaseName.endsWith('.jpeg') ||
+    lowerCaseName.endsWith('.png') ||
+    lowerCaseName.endsWith('.gif') ||
+    lowerCaseName.endsWith('.bmp') ||
+    lowerCaseName.endsWith('.webp')
+  ) {
+    return "image";
+  }
+  
+  if (
+    lowerCaseName.endsWith('.mp4') ||
+    lowerCaseName.endsWith('.webm') ||
+    lowerCaseName.endsWith('.ogg') ||
+    lowerCaseName.endsWith('.mov') ||
+    lowerCaseName.endsWith('.avi') ||
+    lowerCaseName.endsWith('.mkv') ||
+    lowerCaseName.endsWith('.wmv') ||
+    lowerCaseName.endsWith('.flv') ||
+    lowerCaseName.endsWith('.m4v')
+  ) {
+    return "video";
+  }
+  
+  if (
+    lowerCaseName.endsWith('.mp3') ||
+    lowerCaseName.endsWith('.wav') ||
+    lowerCaseName.endsWith('.ogg') ||
+    lowerCaseName.endsWith('.m4a') ||
+    lowerCaseName.endsWith('.flac') ||
+    lowerCaseName.endsWith('.aac')
+  ) {
     return "audio";
   }
 

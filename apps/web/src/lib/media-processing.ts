@@ -54,7 +54,7 @@ export async function processMediaFiles(
           // Generate thumbnail using FFmpeg
           thumbnailUrl = await generateThumbnail(file, 1);
 
-          // Extract audio from video
+          // Extract audio from video (this is for audio waveform visualization)
           const audioBlob = await extractAudio(file);
           extractedAudioUrl = URL.createObjectURL(audioBlob);
         } catch (error) {
@@ -75,13 +75,14 @@ export async function processMediaFiles(
         duration = await getMediaDuration(file);
       }
 
+      // For video files, ensure the original video file maintains its proper URL and properties
       processedItems.push({
         name: file.name,
         type: fileType,
         file,
-        url,
+        url, // This is the main URL for the media (video file URL for video items)
         thumbnailUrl,
-        extractedAudioUrl,
+        extractedAudioUrl, // URL for extracted audio (for waveforms)
         duration,
         width,
         height,

@@ -184,16 +184,30 @@ export const getVideoInfo = async (
     duration = parseInt(h) * 3600 + parseInt(m) * 60 + parseFloat(s);
   }
 
-  const videoStreamMatch = ffmpegOutput.match(
-    /Video:.* (\d+)x(\d+)[^,]*, ([\d.]+) fps/
-  );
-  let width = 0,
-    height = 0,
-    fps = 0;
-  if (videoStreamMatch) {
-    width = parseInt(videoStreamMatch[1]);
-    height = parseInt(videoStreamMatch[2]);
-    fps = parseFloat(videoStreamMatch[3]);
+  // More flexible regex to handle different FPS formats (fps, tbr, tbn, tbc)
+  let width = 0, height = 0, fps = 0;
+  
+  // Look for resolution first (width x height)
+  const resolutionMatch = ffmpegOutput.match(/Video:.*?(\d+)x(\d+)(?:\s|\[)/);
+  if (resolutionMatch) {
+    width = parseInt(resolutionMatch[1]);
+    height = parseInt(resolutionMatch[2]);
+  }
+  
+  // Look for frame rate in various formats
+  const fpsPatterns = [
+    /(\d+\.?\d*)\s+fps/,  // Standard fps
+    /(\d+\.?\d*)\s+tbr/,  // Video time base
+    /(\d+\.?\d*)\s+tbn/,  // Time base denominator
+    /(\d+\.?\d*)\s+tbc/   // Time base count
+  ];
+  
+  for (const pattern of fpsPatterns) {
+    const fpsMatch = ffmpegOutput.match(pattern);
+    if (fpsMatch) {
+      fps = parseFloat(fpsMatch[1]);
+      break; // Take the first match
+    }
   }
 
   return {

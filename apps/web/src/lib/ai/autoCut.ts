@@ -99,7 +99,7 @@ export async function detectAutomaticCuts(): Promise<void> {
       };
     }));
 
-    // Call the AI API to analyze audio and generate cuts
+    // Call the backend API to analyze audio and generate cuts
     const cutAnalysis = await analyzeAudioWithAI(audioFiles);
 
     // Apply the detected cuts to the timeline
@@ -115,7 +115,7 @@ export async function detectAutomaticCuts(): Promise<void> {
 }
 
 /**
- * Calls the AI API to analyze audio and return cut suggestions
+ * Calls the backend API to analyze audio and return cut suggestions
  */
 async function analyzeAudioWithAI(audioFiles: Array<{ filename: string; data: string }>): Promise<AutoCutResponse> {
   const systemPrompt = `You are a professional video editing assistant specialized in social media content creation. Your task is to analyze multiple audio takes and generate a precise editing blueprint for stitching the optimal TikTok video.
@@ -124,148 +124,130 @@ Inputs: Multiple audio files (MP3/WAV).
 
 Processing Requirements:
 - Transcribe with word-level timestamps
-- Analyze for clarity, fluency, emotion, and noise
-- Identify cleanest segments: Clarity > Emotion > Noise
-- Select segments for Intro → Key message → Punchline
-- Add 50ms buffers before/after speech
+- Analyze each take for:
+  - Vocal clarity (signal-to-noise ratio)
+  - Speech fluency (pauses, stutters, pace consistency)
+  - Emotional tone (energy, enthusiasm)
+  - Background noise levels
+- Identify cleanest segments using priority: Clarity > Emotion > Noise
 
-Output JSON:
+Segment Selection:
+- Create a seamless narrative flow by selecting best segments in this order:
+  - Intro
+  - Key message
+  - Punchline/Call-to-action
+- Minimize transitions between different takes
+- Ensure segments connect with natural pauses (minimum 200ms buffer between segments)
+
+Edge Case Handling:
+- If no perfect segment exists:
+  - Prioritize clarity over emotional delivery for informational content
+  - Prioritize energy over perfection for emotional/persuasive content
+  - Flag segments requiring audio cleanup in output JSON
+
+Output JSON: A valid JSON object with the following structure:
 {
   "metadata": {
-    "total_duration": number,
-    "segment_count": number,
-    "takes_used": [string],
-    "quality_warnings": [string]
+    "total_duration": "number",
+    "segment_count": "number",
+    "takes_used": "array of strings (the filenames of audio files that contain the selected segments)",
+    "quality_warnings": "array of strings (any quality issues detected)"
   },
   "segments": [
     {
-      "segment_id": number,
-      "source_file": string,
-      "start_sec": number,
-      "end_sec": number,
-      "content": string,
-      "selection_reason": string,
-      "transition_in": string,
-      "transition_out": string
+      "segment_id": "number",
+      "source_file": "string (must match one of the provided filenames exactly)",
+      "start_sec": "number",
+      "end_sec": "number",
+      "content": "string (a brief transcript of the segment)",
+      "selection_reason": "string (why this segment was chosen)",
+      "transition_in": "string (e.g., 'cut' or 'fade')",
+      "transition_out": "string (e.g., 'cut' or 'fade')"
     }
   ]
-}`;
+}
+
+Technical Constraints:
+- Time precision: ±100ms
+- Duration tolerance: Final video must be 150s ± 40s
+
+Special Instructions:
+- Include 50ms buffer before/after speech in timestamps
+- Flag any segments requiring manual audio cleanup
+- Optimize for TikTok's algorithm: strongest hook in first 3 seconds
+- Reject segments with:
+  - Background speech
+  - 200ms silent pauses
+  - Distortion/clipping`;
 
   const userPrompt = `Analyze the provided audio files and generate optimal cut suggestions for creating an engaging TikTok video.`;
 
-  // Check if we have a Gemini API key in the environment
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn("No Gemini API key found. Using mock data.");
-    // Return mock data if no API key is available
-    return {
-      metadata: {
-        total_duration: audioFiles.length * 5,
-        segment_count: audioFiles.length,
-        takes_used: audioFiles.map(f => f.filename),
-        quality_warnings: []
-      },
-      segments: audioFiles.map((file, index) => ({
-        segment_id: index + 1,
-        source_file: file.filename,
-        start_sec: 0.5,
-        end_sec: 4.5,
-        content: `Sample content from ${file.filename}`,
-        selection_reason: "Optimal segment selected",
-        transition_in: "cut",
-        transition_out: "cut"
-      }))
-    };
-  }
+  console.log("🔍 analyzeAudioWithAI: Starting API call to /api/gemini");
+  console.log("🔍 analyzeAudioWithAI: Number of audio files:", audioFiles.length);
 
   try {
-    // Prepare the request to Gemini API
-    const geminiRequest = {
-      contents: [{
-        role: "user",
-        parts: [
-          { text: systemPrompt },
-          { 
-            text: userPrompt,
-          },
-          ...audioFiles.map(file => ({
-            inlineData: {
-              mimeType: "audio/mpeg", // Assuming MP3, may need to be more specific
-              data: file.data,
-            }
-          }))
-        ]
-      }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            metadata: {
-              type: "OBJECT",
-              properties: {
-                total_duration: { type: "NUMBER" },
-                segment_count: { type: "NUMBER" },
-                takes_used: { 
-                  type: "ARRAY", 
-                  items: { type: "STRING" }
-                },
-                quality_warnings: { 
-                  type: "ARRAY", 
-                  items: { type: "STRING" }
-                }
-              },
-              required: ["total_duration", "segment_count", "takes_used", "quality_warnings"]
-            },
-            segments: {
-              type: "ARRAY",
-              items: {
-                type: "OBJECT",
-                properties: {
-                  segment_id: { type: "NUMBER" },
-                  source_file: { type: "STRING" },
-                  start_sec: { type: "NUMBER" },
-                  end_sec: { type: "NUMBER" },
-                  content: { type: "STRING" },
-                  selection_reason: { type: "STRING" },
-                  transition_in: { type: "STRING" },
-                  transition_out: { type: "STRING" },
-                },
-                required: ["segment_id", "source_file", "start_sec", "end_sec", "content", "selection_reason", "transition_in", "transition_out"]
-              }
-            }
-          },
-          required: ["metadata", "segments"]
-        }
-      }
-    };
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // Call the secure backend API route
+    const response = await fetch("/api/gemini", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(geminiRequest),
+      body: JSON.stringify({ 
+        audioFiles, 
+        systemPrompt, 
+        userPrompt 
+      }),
     });
 
+    console.log("🔍 analyzeAudioWithAI: Response status:", response.status);
+    
     if (!response.ok) {
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText}`);
+      console.error("🔍 analyzeAudioWithAI: Response not OK:", response.status, response.statusText);
+      throw new Error(`Backend API request failed: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
     
-    // Extract the content from the response
-    const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log("🔍 analyzeAudioWithAI: API Response received, mock:", result.mock);
+    console.log("🧩 Gemini raw response:", result);
     
-    if (!responseText) {
-      throw new Error("Invalid response format from Gemini API");
+    if (result.mock) {
+      console.warn("🔍 analyzeAudioWithAI: Using mock data fallback for Gemini API");
+      if (result.data.quality_warnings) {
+        result.data.quality_warnings.push("Using mock data fallback - API key may be missing");
+      }
+      return result.data;
     }
-
-    // Parse the JSON response
-    const parsedResponse = JSON.parse(responseText);
-    return parsedResponse;
+    
+    // Check if the response has valid data structure before using it
+    if (result.data && Array.isArray(result.data.segments) && result.data.segments.length > 0) {
+      console.log("✅ Using real Gemini API response");
+      console.log("🎬 Real Gemini data applied to timeline! Segments count:", result.data.segments.length);
+      return result.data;
+    } else {
+      console.warn("⚠️ Fallback: invalid Gemini response structure, using mock");
+      // Return mock data as fallback when the response structure is invalid
+      return {
+        metadata: {
+          total_duration: audioFiles.length * 5,
+          segment_count: audioFiles.length,
+          takes_used: audioFiles.map(f => f.filename),
+          quality_warnings: ["Invalid response structure from Gemini API"]
+        },
+        segments: audioFiles.map((file, index) => ({
+          segment_id: index + 1,
+          source_file: file.filename,
+          start_sec: 0.5,
+          end_sec: 4.5,
+          content: `Sample content from ${file.filename}`,
+          selection_reason: "Error occurred, using default segment",
+          transition_in: "cut",
+          transition_out: "cut"
+        }))
+      };
+    }
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
+    console.error("🔍 analyzeAudioWithAI: Error calling backend Gemini API:", error);
     // Return mock data as fallback
     return {
       metadata: {
@@ -308,8 +290,20 @@ async function applyCutsToTimeline(
 
   for (const segment of cutAnalysis.segments) {
     // Find the original media item for this segment
-    const originalElementData = audioData.find(d => d.element.name === segment.source_file);
-    if (!originalElementData) continue;
+    console.log("🔍 [Debug Match] AI Segment Source File:", segment.source_file);
+    
+    // The segment.source_file might be the original filename, so we match by mediaItem name instead of element name
+    const originalElementData = audioData.find(d => {
+      console.log("🔍 [Debug Match] Comparing to MediaItem Name:", d.mediaItem.name);
+      // Check if the segment source_file matches the original media file name
+      // This could be either the full filename or just the name part without extension
+      return d.mediaItem.name === segment.source_file || 
+             d.mediaItem.name.startsWith(segment.source_file.replace(/\.[^/.]+$/, '')); // Remove extension and match
+    });
+    if (!originalElementData) {
+      console.warn("❌ [Debug Match] FAILED. No match found for:", segment.source_file);
+      continue;
+    }
 
     const { element, mediaItem } = originalElementData;
 
@@ -336,13 +330,17 @@ async function applyCutsToTimeline(
     };
 
     // Add the new media item to the store
-    if (useProjectStore.getState().activeProject) {
-      await mediaStore.addMediaItem(useProjectStore.getState().activeProject.id, newMediaItem);
+    const activeProject = useProjectStore.getState().activeProject;
+    if (activeProject) {
+      await mediaStore.addMediaItem(activeProject.id, newMediaItem);
     }
 
     // Calculate start time for the new element (add to end of timeline or after last element)
-    const lastElement = targetTrack?.elements
-      .filter(el => el.startTime)
+    // Get the current state of the target track to account for any elements added in previous iterations
+    const currentTargetTrack = useTimelineStore.getState()._tracks.find(t => t.id === targetTrackId);
+    
+    const lastElement = currentTargetTrack?.elements
+      .filter(el => el.startTime !== undefined && el.startTime !== null)
       .sort((a, b) => (b.startTime + b.duration) - (a.startTime + a.duration))[0];
     
     const startTime = lastElement 
@@ -350,7 +348,7 @@ async function applyCutsToTimeline(
       : 0;
 
     // Add the new trimmed element to the timeline
-    timelineStore.addElementToTrack(targetTrackId, {
+    useTimelineStore.getState().addElementToTrack(targetTrackId, {
       type: "media",
       mediaId: newMediaItem.id,
       name: newMediaItem.name,
