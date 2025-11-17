@@ -26,3 +26,8 @@ Este arquivo rastreia o progresso do desenvolvimento do editor de vídeo simplif
 **Próximo Passo:** Teste da Funcionalidade.
 
 Finalizamos a implementação da extração de áudio, exibição da forma de onda e detecção automática de cortes com IA. O próximo passo é executar a aplicação e testar o fluxo completo: selecionar elementos de mídia, aplicar a detecção automática de cortes com IA e verificar se os trechos otimizados são adicionados corretamente ao timeline.
+
+## AI Feature Guidelines (Automatic Cut Detection)
+- **System Prompt Integrity**: The `systemPrompt` variable in `autoCut.ts` is highly tuned. **DO NOT** shorten, optimize, or modify it without an explicit user request.
+- **API Endpoint**: The project relies on **Google Gemini `v1beta`**. Do NOT switch to `v1` (stable) as it does not support the required multimodal audio input for the `gemini-2.5-flash` model.
+- **Frontend Logic**: When modifying `applyCutsToTimeline`, always check for **stale state**. Use `useTimelineStore.getState()` inside async flows instead of capturing the store variable at the beginning.

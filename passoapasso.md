@@ -65,3 +65,9 @@ Esta análise detalha como o projeto OpenCut pode ser configurado e estendido pa
 
     5.  **Simplificação da Interface:**
         *   Para manter o foco, vamos remover ou ocultar elementos complexos da interface original, como painéis de propriedades avançadas, múltiplas trilhas, etc. A tela de edição será composta basicamente pelo preview do vídeo, a forma de onda do áudio (com controles de seleção) e o botão "Exportar".
+
+## Session: Finalizing Auto-Cut AI & Timeline Logic
+1.  **API Integration**: We faced persistent 404/503 errors. The fix was to strictly use the `v1beta` endpoint with the `gemini-2.5-flash` model (stable enough for free tier).
+2.  **JSON Parsing**: The AI returned Markdown-wrapped JSON. We added a regex cleaner to extract the raw JSON object before parsing.
+3.  **Prompt Engineering**: The AI was "hallucinating" example filenames. We fixed this by injecting the *real* filenames into the prompt dynamically.
+4.  **Frontend Rendering (The Final Bug)**: The API was returning segments, but they weren't appearing on the timeline. We diagnosed a "falsy" filter bug (`el.startTime`) that was filtering out the first clip (0s), causing the `startTime` calculation to reset to 0 for every subsequent clip.
