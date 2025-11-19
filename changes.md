@@ -1,7 +1,7 @@
 ## Diário de mudanças da sessão atual
 
 ### 1. Corrigindo a importação do FFmpeg
-- O `ffmpeg.wasm` não carregava por causa do bundle UMD antigo; trocamos para a versão compatível e servimos via `/public/ffmpeg`, convertendo em `Blob` com `toBlobURL`. 
+- O `ffmpeg.wasm` não carregava por causa do bundle UMD antigo; trocamos para a versão compatível e servimos via `/public/ffmpeg`, convertendo em `Blob` com `toBlobURL`.
 - Adicionamos um carregamento com mutex (`ffmpegLoadingPromise`) para evitar `setLogger` undefined quando dois componentes chamam `initFFmpeg` ao mesmo tempo.
 - O worker agora recebe os assets via URL absoluta (com `window.location.origin`) e todos os arquivos temporários são gravados na trail do ffmpeg (sem depender da rede).
 
@@ -36,3 +36,4 @@ Tudo isso está em TypeScript no app Next.js (ramo `simplified-editor`).
 - **State Management**: Fixed `stale state` and `null object` (ts:2531) errors by accessing `useTimelineStore.getState()` directly at the moment of insertion.
 - **AI Hallucination**: Fixed a bug where the AI was ignoring real files and using example filenames (`take_1.mp3`) by injecting real filenames into the prompt.
 - **API Reliability**: Solved 404/400/503 errors by enforcing the `gemini-2.5-flash` model on the `v1beta` endpoint.
+- **Infinite Loading**: Resolved the "Infinite Loading" issue during timeline export. Implemented an **auto-snapping algorithm** in `timeline-export.ts` that eliminates micro-gaps (floating-point errors) between clips before processing, preventing FFmpeg hangs.

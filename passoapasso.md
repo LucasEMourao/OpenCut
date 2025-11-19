@@ -71,3 +71,10 @@ Esta análise detalha como o projeto OpenCut pode ser configurado e estendido pa
 2.  **JSON Parsing**: The AI returned Markdown-wrapped JSON. We added a regex cleaner to extract the raw JSON object before parsing.
 3.  **Prompt Engineering**: The AI was "hallucinating" example filenames. We fixed this by injecting the *real* filenames into the prompt dynamically.
 4.  **Frontend Rendering (The Final Bug)**: The API was returning segments, but they weren't appearing on the timeline. We diagnosed a "falsy" filter bug (`el.startTime`) that was filtering out the first clip (0s), causing the `startTime` calculation to reset to 0 for every subsequent clip.
+
+## Session: Fix Export/Render issues & Plan Next Major Upgrade
+1.  **[x] Fix Export/Render issues**: Resolved the "Infinite Loading" issue during timeline export. Implemented an **auto-snapping algorithm** in `timeline-export.ts` that eliminates micro-gaps (floating-point errors) between clips before processing, preventing FFmpeg hangs.
+2.  **[ ] UPGRADE: Migrate to Gemini 3.0 Model**
+    *   *Context:* Google has released the new Gemini 3.0 models.
+    *   *Action:* Analyze the new documentation (https://ai.google.dev/gemini-api/docs) to identify the correct model names (e.g., `gemini-3.0-flash`).
+    *   *Task:* Refactor `/api/gemini.ts` to use the 3.0 model, verify `v1beta` compatibility, and test for improved speed/quality.

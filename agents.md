@@ -31,3 +31,6 @@ Finalizamos a implementação da extração de áudio, exibição da forma de on
 - **System Prompt Integrity**: The `systemPrompt` variable in `autoCut.ts` is highly tuned. **DO NOT** shorten, optimize, or modify it without an explicit user request.
 - **API Endpoint**: The project relies on **Google Gemini `v1beta`**. Do NOT switch to `v1` (stable) as it does not support the required multimodal audio input for the `gemini-2.5-flash` model.
 - **Frontend Logic**: When modifying `applyCutsToTimeline`, always check for **stale state**. Use `useTimelineStore.getState()` inside async flows instead of capturing the store variable at the beginning.
+
+## Export & Rendering Guidelines
+- **Gap Handling**: FFmpeg is extremely sensitive to gaps. Any export logic MUST sanitize the timeline by forcing `startTime = previousEndTime` for all sequential clips. Never rely on raw user placement for the final render.
