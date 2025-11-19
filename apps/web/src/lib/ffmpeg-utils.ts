@@ -44,8 +44,9 @@ export const generateThumbnail = async (
 ): Promise<string> => {
   const ffmpeg = await initFFmpeg();
 
-  const inputName = "input.mp4";
-  const outputName = "thumbnail.jpg";
+  // Generate safe, unique filenames
+  const inputName = `input_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp4`;
+  const outputName = `thumbnail_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
 
   // Write input file
   await ffmpeg.writeFile(
@@ -87,8 +88,8 @@ export const trimVideo = async (
 ): Promise<Blob> => {
   const ffmpeg = await initFFmpeg();
 
-  const inputName = "input.mp4";
-  const outputName = "output.mp4";
+  const inputName = `input_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp4`;
+  const outputName = `output_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp4`;
 
   // Set up progress callback
   if (onProgress) {
@@ -139,7 +140,7 @@ export const getVideoInfo = async (
 }> => {
   const ffmpeg = await initFFmpeg();
 
-  const inputName = "input.mp4";
+  const inputName = `input_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp4`;
 
   // Write input file
   await ffmpeg.writeFile(
@@ -186,14 +187,14 @@ export const getVideoInfo = async (
 
   // More flexible regex to handle different FPS formats (fps, tbr, tbn, tbc)
   let width = 0, height = 0, fps = 0;
-  
+
   // Look for resolution first (width x height)
   const resolutionMatch = ffmpegOutput.match(/Video:.*?(\d+)x(\d+)(?:\s|\[)/);
   if (resolutionMatch) {
     width = parseInt(resolutionMatch[1]);
     height = parseInt(resolutionMatch[2]);
   }
-  
+
   // Look for frame rate in various formats
   const fpsPatterns = [
     /(\d+\.?\d*)\s+fps/,  // Standard fps
@@ -201,7 +202,7 @@ export const getVideoInfo = async (
     /(\d+\.?\d*)\s+tbn/,  // Time base denominator
     /(\d+\.?\d*)\s+tbc/   // Time base count
   ];
-  
+
   for (const pattern of fpsPatterns) {
     const fpsMatch = ffmpegOutput.match(pattern);
     if (fpsMatch) {
@@ -224,8 +225,8 @@ export const convertToWebM = async (
 ): Promise<Blob> => {
   const ffmpeg = await initFFmpeg();
 
-  const inputName = "input.mp4";
-  const outputName = "output.webm";
+  const inputName = `input_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp4`;
+  const outputName = `output_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.webm`;
 
   // Set up progress callback
   if (onProgress) {
@@ -272,8 +273,8 @@ export const extractAudio = async (
 ): Promise<Blob> => {
   const ffmpeg = await initFFmpeg();
 
-  const inputName = "input.mp4";
-  const outputName = `output.${format}`;
+  const inputName = `input_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.mp4`;
+  const outputName = `output_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${format}`;
 
   // Write input file
   await ffmpeg.writeFile(

@@ -199,6 +199,36 @@ const getClipDuration = (element: TimelineTrack["elements"][number]) => {
   return element.duration - element.trimStart - element.trimEnd;
 };
 
+const snapTimelineElements = (
+  elements: TimelineTrack["elements"]
+): TimelineTrack["elements"] => {
+  if (elements.length <= 1) {
+    return elements;
+  }
+
+  const sorted = [...elements].sort((a, b) => a.startTime - b.startTime);
+  const snapped: TimelineTrack["elements"] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const element = sorted[i];
+    const newElement = { ...element };
+
+    if (i === 0) {
+      // First element keeps its start time (or set to 0)
+      newElement.startTime = 0;
+    } else {
+      // Set start time to exactly match the end time of the previous element
+      const previousElement = snapped[i - 1];
+      const previousDuration = getClipDuration(previousElement);
+      newElement.startTime = previousElement.startTime + previousDuration;
+    }
+
+    snapped.push(newElement);
+  }
+
+  return snapped;
+};
+
 const validateSequentialTimeline = (
   elements: TimelineTrack["elements"],
   label: string
@@ -282,7 +312,10 @@ export const exportTimelineToMp4 = async ({
 
   const videoTrack = activeMediaTracks[0];
 
-  const videoElementsWithMedia: TimelineElementWithMedia[] = videoTrack.elements
+  // Auto-snap video track elements to eliminate gaps
+  const snappedVideoElements = snapTimelineElements(videoTrack.elements);
+
+  const videoElementsWithMedia: TimelineElementWithMedia[] = snappedVideoElements
     .slice()
     .sort((a, b) => a.startTime - b.startTime)
     .map((element) => {
@@ -303,7 +336,7 @@ export const exportTimelineToMp4 = async ({
     });
 
   const videoDuration = validateSequentialTimeline(
-    videoTrack.elements,
+    snappedVideoElements,
     "video"
   );
 
@@ -322,7 +355,10 @@ export const exportTimelineToMp4 = async ({
   if (audioTracks.length === 1) {
     const audioTrack = audioTracks[0];
 
-    audioElementsWithMedia = audioTrack.elements
+    // Auto-snap audio track elements to eliminate gaps
+    const snappedAudioElements = snapTimelineElements(audioTrack.elements);
+
+    audioElementsWithMedia = snappedAudioElements
       .slice()
       .sort((a, b) => a.startTime - b.startTime)
       .map((element) => {
@@ -343,7 +379,7 @@ export const exportTimelineToMp4 = async ({
       });
 
     const audioDuration = validateSequentialTimeline(
-      audioTrack.elements,
+      snappedAudioElements,
       "audio"
     );
 
