@@ -292,7 +292,8 @@ export const exportTimelineToMp4 = async ({
   mediaItems,
   projectName,
   canvasSize,
-}: ExportOptions): Promise<{ blob: Blob; filename: string }> => {
+  onProgress,
+}: ExportOptions & { onProgress?: (progress: number) => void }): Promise<{ blob: Blob; filename: string }> => {
   const mediaMap = new Map(mediaItems.map((item) => [item.id, item]));
   const activeMediaTracks = tracks.filter(
     (track) => track.type === "media" && track.elements.length > 0
@@ -314,6 +315,7 @@ export const exportTimelineToMp4 = async ({
 
   // Auto-snap video track elements to eliminate gaps
   const snappedVideoElements = snapTimelineElements(videoTrack.elements);
+  console.log("Sanitized export timeline (video):", snappedVideoElements);
 
   const videoElementsWithMedia: TimelineElementWithMedia[] = snappedVideoElements
     .slice()
@@ -406,6 +408,13 @@ export const exportTimelineToMp4 = async ({
     .sort((a, b) => a.startTime - b.startTime);
 
   const ffmpeg = await initFFmpeg();
+
+  if (onProgress) {
+    ffmpeg.on('progress', ({ progress }) => {
+      onProgress(Math.round(progress * 100));
+    });
+  }
+
   const writtenInputs = new Map<string, string>();
   const cleanupQueue: string[] = [];
 
@@ -415,74 +424,160 @@ export const exportTimelineToMp4 = async ({
 
   const createVideoOutput = async () => {
     const segmentNames: string[] = [];
+    const totalDuration = videoElementsWithMedia.reduce(
+      (acc, { element }) => acc + getClipDuration(element),
+      0
+    );
+    let processedDuration = 0;
 
+    // Helper to parse time from FFmpeg logs
+    const parseTimeFromLog = (message: string): number | null => {
+      const timeMatch = message.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d{2})/);
+      if (timeMatch) {
+        const hours = parseFloat(timeMatch[1]);
+        const minutes = parseFloat(timeMatch[2]);
+        const seconds = parseFloat(timeMatch[3]);
+        return hours * 3600 + minutes * 60 + seconds;
+      }
+      return null;
+    };
+
+    // 1. Process each segment: Re-encode to fix rotation and standardize format
     for (let index = 0; index < videoElementsWithMedia.length; index += 1) {
       const { element, media } = videoElementsWithMedia[index];
       const inputName = await writeUniqueInput(ffmpeg, media, writtenInputs);
       const clipDuration = getClipDuration(element);
       const segmentName = `video_segment_${index}.mp4`;
 
-      await ffmpeg.exec([
-        "-i",
-        inputName,
-        "-ss",
-        element.trimStart.toFixed(3),
-        "-t",
-        clipDuration.toFixed(3),
-        "-vf",
-        scaleFilter,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        "23",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-movflags",
-        "faststart",
-        segmentName,
-      ]);
+      // Time-based progress listener for this segment
+      const logListener = ({ message }: { message: string }) => {
+        if (onProgress) {
+          const currentTime = parseTimeFromLog(message);
+          if (currentTime !== null) {
+            // Calculate progress within this specific clip
+            const clipProgress = Math.min(currentTime / clipDuration, 1);
 
+            // Map to global progress (0-90% reserved for segments)
+            const segmentWeight = clipDuration / totalDuration;
+            const currentSegmentContribution = clipProgress * segmentWeight;
+            const rawProgress =
+              (processedDuration / totalDuration + currentSegmentContribution) * 0.9;
+
+            // Strict clamping 0-100
+            const clampedProgress = Math.min(100, Math.max(0, Math.round(rawProgress * 100)));
+            onProgress(clampedProgress);
+          }
+        }
+      };
+
+      ffmpeg.on("log", logListener);
+
+      try {
+        await ffmpeg.exec([
+          "-i",
+          inputName,
+          "-ss",
+          element.trimStart.toFixed(3),
+          "-t",
+          clipDuration.toFixed(3),
+          "-vf",
+          scaleFilter, // Ensure consistent resolution for concat
+          "-c:v",
+          "libx264",
+          "-preset",
+          "ultrafast", // Speed priority
+          "-crf",
+          "23", // Balanced quality
+          "-c:a",
+          "aac", // Encode audio to AAC
+          "-b:a",
+          "192k",
+          "-ac",
+          "2", // Force stereo to avoid channel mismatch issues
+          "-ar",
+          "44100", // Standardize sample rate
+          "-movflags",
+          "faststart",
+          segmentName,
+        ]);
+      } finally {
+        ffmpeg.off("log", logListener);
+      }
+
+      processedDuration += clipDuration;
       segmentNames.push(segmentName);
       cleanupQueue.push(segmentName);
     }
 
     const outputName = "video_concat.mp4";
 
-    if (segmentNames.length === 1) {
-      await ffmpeg.exec([
-        "-i",
-        segmentNames[0],
-        "-c",
-        "copy",
-        "-movflags",
-        "faststart",
-        outputName,
-      ]);
-    } else {
-      const concatList = segmentNames
-        .map((name) => `file '${name}'`)
-        .join("\n");
-      const listFile = "video_segments.txt";
-      await ffmpeg.writeFile(listFile, textEncoder.encode(concatList));
-      cleanupQueue.push(listFile);
+    // Final Concat Step (Weighted as the last 10%)
+    const concatLogListener = ({ message }: { message: string }) => {
+      if (onProgress) {
+        const currentTime = parseTimeFromLog(message);
+        if (currentTime !== null) {
+          // Progress for the full video duration during concat
+          const concatProgress = Math.min(currentTime / totalDuration, 1);
+          // Map to the final 10% (90-100%)
+          const rawProgress = 0.9 + (concatProgress * 0.1);
+          // Strict clamping 0-100
+          const clampedProgress = Math.min(100, Math.max(0, Math.round(rawProgress * 100)));
+          onProgress(clampedProgress);
+        }
+      }
+    };
+    ffmpeg.on("log", concatLogListener);
 
-      await ffmpeg.exec([
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        listFile,
-        "-c",
-        "copy",
-        "-movflags",
-        "faststart",
-        outputName,
-      ]);
+    try {
+      if (segmentNames.length === 1) {
+        // Single segment: just copy (it's already re-encoded correctly above)
+        await ffmpeg.exec([
+          "-i",
+          segmentNames[0],
+          "-c",
+          "copy",
+          "-movflags",
+          "faststart",
+          outputName,
+        ]);
+      } else {
+        // Multiple segments: Filter Complex Concat with Audio
+        const inputArgs: string[] = [];
+        const filterInputs: string[] = [];
+
+        segmentNames.forEach((name, i) => {
+          inputArgs.push("-i", name);
+          filterInputs.push(`[${i}:v][${i}:a]`);
+        });
+
+        // Concat both video [v] and audio [a] streams
+        const filterComplex = `${filterInputs.join("")}concat=n=${segmentNames.length}:v=1:a=1[outv][outa]`;
+
+        await ffmpeg.exec([
+          ...inputArgs,
+          "-filter_complex",
+          filterComplex,
+          "-map",
+          "[outv]",
+          "-map",
+          "[outa]",
+          "-c:v",
+          "libx264",
+          "-preset",
+          "ultrafast",
+          "-crf",
+          "23",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "192k",
+          "-movflags",
+          "faststart",
+          outputName,
+        ]);
+      }
+    } finally {
+      ffmpeg.off("log", concatLogListener);
     }
 
     cleanupQueue.push(outputName);

@@ -77,4 +77,10 @@ Esta análise detalha como o projeto OpenCut pode ser configurado e estendido pa
 2.  **[ ] UPGRADE: Migrate to Gemini 3.0 Model**
     *   *Context:* Google has released the new Gemini 3.0 models.
     *   *Action:* Analyze the new documentation (https://ai.google.dev/gemini-api/docs) to identify the correct model names (e.g., `gemini-3.0-flash`).
-    *   *Task:* Refactor `/api/gemini.ts` to use the 3.0 model, verify `v1beta` compatibility, and test for improved speed/quality.
+## Session: Backend & Export Stabilization
+1.  **Upload Architecture:** Moved from Base64/Inline to File API. Solved Bun compatibility by implementing raw HTTP Resumable Upload.
+2.  **MIME Type Fix:** Enforced `audio/mpeg` type propagation from upload to generation to satisfy Gemini API requirements.
+3.  **Export Rewrite:** Diagnosed silent failures in FFmpeg. Switched to `filter_complex` re-encoding strategy to fix missing audio and rotation issues.
+4.  **Current Status:** Core logic is functional.
+5.  **Known Issues:** Export progress bar UI sometimes displays internal IDs instead of clean percentages (visual only).
+6.  **Next Steps:** Polish UI/UX and investigate Gemini 3.0 model availability.

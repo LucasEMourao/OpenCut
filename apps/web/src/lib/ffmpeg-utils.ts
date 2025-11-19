@@ -28,6 +28,11 @@ export const initFFmpeg = async (): Promise<FFmpeg> => {
         ),
       });
 
+      // Enable global logging for debugging
+      instance.on('log', ({ message }) => {
+        console.log('🎥 [FFmpeg]:', message);
+      });
+
       ffmpeg = instance;
       return instance;
     } finally {

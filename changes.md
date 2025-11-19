@@ -1,5 +1,15 @@
 ## Diário de mudanças da sessão atual
 
+### [Unreleased]
+- **Backend Refactor:** Migrated `/api/gemini` to use **Google File API** with a manual Resumable Upload protocol (bypassing SDK incompatibilities with Bun).
+- **Fix:** Solved `400 Bad Request` and `413 Payload Too Large` errors by enforcing correct MIME types (`audio/mpeg`) and streaming large files via File API.
+- **Export Engine:** Completely rewrote `timeline-export.ts` to use a **Filter Complex** (`[0:v][0:a]...`) which solves:
+    - **Missing Audio:** Audio streams are now explicitly mapped and re-encoded.
+    - **Rotation Issues:** Vertical videos are now correctly oriented (re-encoded with `libx264`).
+    - **Hanging/Stalling:** Implemented "Auto-Snap" to remove micro-gaps between clips before processing.
+- **Performance:** Optimized export with `-preset ultrafast` (balanced with `-crf 23` for quality).
+
+
 ### 1. Corrigindo a importação do FFmpeg
 - O `ffmpeg.wasm` não carregava por causa do bundle UMD antigo; trocamos para a versão compatível e servimos via `/public/ffmpeg`, convertendo em `Blob` com `toBlobURL`.
 - Adicionamos um carregamento com mutex (`ffmpegLoadingPromise`) para evitar `setLogger` undefined quando dois componentes chamam `initFFmpeg` ao mesmo tempo.

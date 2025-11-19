@@ -181,14 +181,16 @@ export function EditorHeader() {
   );
 }
 
-function ExportButton() {
+export function ExportButton() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   const handleExportVideo = useCallback(async () => {
     if (isExporting) return;
 
     setIsExporting(true);
+    setExportProgress(0);
     const toastId = toast.loading("Exporting timeline...");
 
     try {
@@ -202,6 +204,10 @@ function ExportButton() {
         projectName: projectState.activeProject?.name,
         canvasSize:
           projectState.activeProject?.canvasSize ?? DEFAULT_CANVAS_SIZE,
+        onProgress: (progress) => {
+          setExportProgress(progress);
+          toast.loading(`Exporting timeline... ${progress}%`, { id: toastId });
+        },
       });
 
       downloadBlob(blob, filename);
@@ -216,6 +222,7 @@ function ExportButton() {
       toast.error(message, { id: toastId });
     } finally {
       setIsExporting(false);
+      setExportProgress(0);
     }
   }, [isExporting]);
 
@@ -265,7 +272,7 @@ function ExportButton() {
             className="flex items-center gap-2"
           >
             <Download className="h-4 w-4" />
-            {isExporting ? "Exporting…" : "Export MP4"}
+            {isExporting ? `Exporting ${exportProgress}%` : "Export MP4"}
           </Button>
         </DialogFooter>
       </DialogContent>

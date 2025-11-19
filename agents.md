@@ -34,3 +34,8 @@ Finalizamos a implementação da extração de áudio, exibição da forma de on
 
 ## Export & Rendering Guidelines
 - **Gap Handling**: FFmpeg is extremely sensitive to gaps. Any export logic MUST sanitize the timeline by forcing `startTime = previousEndTime` for all sequential clips. Never rely on raw user placement for the final render.
+- **FFmpeg Concatenation**: Do NOT use the `concat` demuxer (text file list). ALWAYS use `filter_complex` to ensure audio/video synchronization and rotation metadata preservation.
+
+## Backend Architecture Guidelines
+- **Upload Logic**: NEVER use `fileManager.uploadFile` in this Bun environment. ALWAYS use the manual `fetch` implementation with `X-Goog-Upload-Command`.
+- **MIME Types**: The frontend extracts audio, so the backend MUST treat inputs as `audio/mpeg` for the AI, even if the original file was `.mp4`.
