@@ -23,6 +23,7 @@ import {
   Eye,
   MicOff,
   Mic,
+  Loader2,
 } from "lucide-react";
 import {
   Tooltip,
@@ -958,6 +959,7 @@ function TimelineToolbar({
     toggleSnapping,
     rippleEditingEnabled,
     toggleRippleEditing,
+    isAutoCutting,
   } = useTimelineStore();
   const { currentTime, duration, isPlaying, toggle } = usePlaybackStore();
   const { toggleBookmark, isBookmarked, activeProject } = useProjectStore();
@@ -1303,11 +1305,24 @@ function TimelineToolbar({
           <div className="w-px h-6 bg-border mx-1" />
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="text" size="icon" onClick={detectAutomaticCuts}>
-                <Scissors className="h-4 w-4" />
+              <Button
+                variant="text"
+                size="icon"
+                onClick={detectAutomaticCuts}
+                disabled={isAutoCutting}
+              >
+                {isAutoCutting ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                ) : (
+                  <Scissors className="h-4 w-4" />
+                )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Detect automatic cuts with AI</TooltipContent>
+            <TooltipContent>
+              {isAutoCutting
+                ? "AI is analyzing..."
+                : "Detect automatic cuts with AI"}
+            </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>

@@ -59,6 +59,10 @@ interface TimelineStore {
   rippleEditingEnabled: boolean;
   toggleRippleEditing: () => void;
 
+  // Auto-Cut State
+  isAutoCutting: boolean;
+  setIsAutoCutting: (isAutoCutting: boolean) => void;
+
   // Multi-selection
   selectedElements: { trackId: string; elementId: string }[];
   selectElement: (trackId: string, elementId: string, multi?: boolean) => void;
@@ -251,6 +255,7 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
     redoStack: [],
     selectedElements: [],
     rippleEditingEnabled: false,
+    isAutoCutting: false,
 
     // Snapping settings defaults
     snappingEnabled: true,
@@ -288,16 +293,16 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         if (multi) {
           return exists
             ? {
-                selectedElements: state.selectedElements.filter(
-                  (c) => !(c.trackId === trackId && c.elementId === elementId)
-                ),
-              }
+              selectedElements: state.selectedElements.filter(
+                (c) => !(c.trackId === trackId && c.elementId === elementId)
+              ),
+            }
             : {
-                selectedElements: [
-                  ...state.selectedElements,
-                  { trackId, elementId },
-                ],
-              };
+              selectedElements: [
+                ...state.selectedElements,
+                { trackId, elementId },
+              ],
+            };
         }
         return { selectedElements: [{ trackId, elementId }] };
       });
@@ -569,11 +574,11 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
             ._tracks.map((track) =>
               track.id === trackId
                 ? {
-                    ...track,
-                    elements: track.elements.filter(
-                      (element) => element.id !== elementId
-                    ),
-                  }
+                  ...track,
+                  elements: track.elements.filter(
+                    (element) => element.id !== elementId
+                  ),
+                }
                 : track
             )
             .filter((track) => track.elements.length > 0)
@@ -713,13 +718,13 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         get()._tracks.map((track) =>
           track.id === trackId
             ? {
-                ...track,
-                elements: track.elements.map((element) =>
-                  element.id === elementId
-                    ? { ...element, trimStart, trimEnd }
-                    : element
-                ),
-              }
+              ...track,
+              elements: track.elements.map((element) =>
+                element.id === elementId
+                  ? { ...element, trimStart, trimEnd }
+                  : element
+              ),
+            }
             : track
         )
       );
@@ -736,11 +741,11 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         get()._tracks.map((track) =>
           track.id === trackId
             ? {
-                ...track,
-                elements: track.elements.map((element) =>
-                  element.id === elementId ? { ...element, duration } : element
-                ),
-              }
+              ...track,
+              elements: track.elements.map((element) =>
+                element.id === elementId ? { ...element, duration } : element
+              ),
+            }
             : track
         )
       );
@@ -758,13 +763,13 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         get()._tracks.map((track) =>
           track.id === trackId
             ? {
-                ...track,
-                elements: track.elements.map((element) =>
-                  element.id === elementId
-                    ? { ...element, startTime: clampedStartTime }
-                    : element
-                ),
-              }
+              ...track,
+              elements: track.elements.map((element) =>
+                element.id === elementId
+                  ? { ...element, startTime: clampedStartTime }
+                  : element
+              ),
+            }
             : track
         )
       );
@@ -873,13 +878,13 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         get()._tracks.map((track) =>
           track.id === trackId
             ? {
-                ...track,
-                elements: track.elements.map((element) =>
-                  element.id === elementId
-                    ? { ...element, hidden: !element.hidden }
-                    : element
-                ),
-              }
+              ...track,
+              elements: track.elements.map((element) =>
+                element.id === elementId
+                  ? { ...element, hidden: !element.hidden }
+                  : element
+              ),
+            }
             : track
         )
       );
@@ -891,13 +896,13 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         get()._tracks.map((track) =>
           track.id === trackId
             ? {
-                ...track,
-                elements: track.elements.map((element) =>
-                  element.id === elementId && element.type === "text"
-                    ? { ...element, ...updates }
-                    : element
-                ),
-              }
+              ...track,
+              elements: track.elements.map((element) =>
+                element.id === elementId && element.type === "text"
+                  ? { ...element, ...updates }
+                  : element
+              ),
+            }
             : track
         )
       );
@@ -930,26 +935,26 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         get()._tracks.map((track) =>
           track.id === trackId
             ? {
-                ...track,
-                elements: track.elements.flatMap((c) =>
-                  c.id === elementId
-                    ? [
-                        {
-                          ...c,
-                          trimEnd: c.trimEnd + secondDuration,
-                          name: getElementNameWithSuffix(c.name, "left"),
-                        },
-                        {
-                          ...c,
-                          id: secondElementId,
-                          startTime: splitTime,
-                          trimStart: c.trimStart + firstDuration,
-                          name: getElementNameWithSuffix(c.name, "right"),
-                        },
-                      ]
-                    : [c]
-                ),
-              }
+              ...track,
+              elements: track.elements.flatMap((c) =>
+                c.id === elementId
+                  ? [
+                    {
+                      ...c,
+                      trimEnd: c.trimEnd + secondDuration,
+                      name: getElementNameWithSuffix(c.name, "left"),
+                    },
+                    {
+                      ...c,
+                      id: secondElementId,
+                      startTime: splitTime,
+                      trimStart: c.trimStart + firstDuration,
+                      name: getElementNameWithSuffix(c.name, "right"),
+                    },
+                  ]
+                  : [c]
+              ),
+            }
             : track
         )
       );
@@ -982,17 +987,17 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         get()._tracks.map((track) =>
           track.id === trackId
             ? {
-                ...track,
-                elements: track.elements.map((c) =>
-                  c.id === elementId
-                    ? {
-                        ...c,
-                        trimEnd: c.trimEnd + durationToRemove,
-                        name: getElementNameWithSuffix(c.name, "left"),
-                      }
-                    : c
-                ),
-              }
+              ...track,
+              elements: track.elements.map((c) =>
+                c.id === elementId
+                  ? {
+                    ...c,
+                    trimEnd: c.trimEnd + durationToRemove,
+                    name: getElementNameWithSuffix(c.name, "left"),
+                  }
+                  : c
+              ),
+            }
             : track
         )
       );
@@ -1021,18 +1026,18 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         get()._tracks.map((track) =>
           track.id === trackId
             ? {
-                ...track,
-                elements: track.elements.map((c) =>
-                  c.id === elementId
-                    ? {
-                        ...c,
-                        startTime: splitTime,
-                        trimStart: c.trimStart + relativeTime,
-                        name: getElementNameWithSuffix(c.name, "right"),
-                      }
-                    : c
-                ),
-              }
+              ...track,
+              elements: track.elements.map((c) =>
+                c.id === elementId
+                  ? {
+                    ...c,
+                    startTime: splitTime,
+                    trimStart: c.trimStart + relativeTime,
+                    name: getElementNameWithSuffix(c.name, "right"),
+                  }
+                  : c
+              ),
+            }
             : track
         )
       );
@@ -1150,19 +1155,19 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
           _tracks.map((track) =>
             track.id === trackId
               ? {
-                  ...track,
-                  elements: track.elements.map((c) =>
-                    c.id === elementId
-                      ? {
-                          ...c,
-                          mediaId: newMediaItem.id,
-                          name: newMediaItem.name,
-                          // Update duration if the new media has a different duration
-                          duration: newMediaItem.duration || c.duration,
-                        }
-                      : c
-                  ),
-                }
+                ...track,
+                elements: track.elements.map((c) =>
+                  c.id === elementId
+                    ? {
+                      ...c,
+                      mediaId: newMediaItem.id,
+                      name: newMediaItem.name,
+                      // Update duration if the new media has a different duration
+                      duration: newMediaItem.duration || c.duration,
+                    }
+                    : c
+                ),
+              }
               : track
           )
         );
@@ -1345,6 +1350,8 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         rippleEditingEnabled: !state.rippleEditingEnabled,
       }));
     },
+
+    setIsAutoCutting: (isAutoCutting) => set({ isAutoCutting }),
 
     checkElementOverlap: (trackId, startTime, duration, excludeElementId) => {
       const track = get()._tracks.find((t) => t.id === trackId);

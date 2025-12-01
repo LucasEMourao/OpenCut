@@ -302,6 +302,7 @@ CRITICAL TIMING INSTRUCTIONS:
     console.log("🔍 Raw Gemini Response:", responseText.substring(0, 200) + "...");
 
     const parsedResponse = JSON.parse(responseText);
+    console.log("🔍 [DEBUG] FULL GEMINI RESPONSE:\n", JSON.stringify(parsedResponse, null, 2));
 
     // 6. Cleanup Local Temp Files
     await Promise.all(tempFiles.map(p => fs.unlink(p).catch(e => console.error("Failed to delete temp file:", p, e))));

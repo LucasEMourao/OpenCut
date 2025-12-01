@@ -31,8 +31,10 @@ interface AutoCutResponse {
  * Detects optimal cuts in audio from selected media elements and applies them to the timeline
  */
 export async function detectAutomaticCuts(): Promise<void> {
+  const timelineStore = useTimelineStore.getState();
+  timelineStore.setIsAutoCutting(true);
+
   try {
-    const timelineStore = useTimelineStore.getState();
     const mediaStore = useMediaStore.getState();
 
     // Get selected media elements from the timeline
@@ -59,14 +61,14 @@ export async function detectAutomaticCuts(): Promise<void> {
     // Extract audio from selected media elements
     const audioExtractionPromises = selectedElements.map(async ({ element }) => {
       if (element.type !== "media") return null;
-      
+
       const mediaItem = mediaStore.mediaItems.find(m => m.id === element.mediaId);
       if (!mediaItem || !mediaItem.file) return null;
 
       // Extract audio from media file
       const audioBlob = await extractAudio(mediaItem.file);
       const audioUrl = URL.createObjectURL(audioBlob);
-      
+
       return {
         id: element.id,
         audioBlob,
@@ -107,10 +109,12 @@ export async function detectAutomaticCuts(): Promise<void> {
 
     // Success notification
     toast.success("Cuts detected and applied to timeline", { id: "auto-cut-progress" });
-    
+
   } catch (error) {
     console.error("Error in automatic cut detection:", error);
     toast.error("Failed to detect automatic cuts", { id: "auto-cut-progress" });
+  } finally {
+    timelineStore.setIsAutoCutting(false);
   }
 }
 
@@ -192,25 +196,25 @@ Special Instructions:
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ 
-        audioFiles, 
-        systemPrompt, 
-        userPrompt 
+      body: JSON.stringify({
+        audioFiles,
+        systemPrompt,
+        userPrompt
       }),
     });
 
     console.log("🔍 analyzeAudioWithAI: Response status:", response.status);
-    
+
     if (!response.ok) {
       console.error("🔍 analyzeAudioWithAI: Response not OK:", response.status, response.statusText);
       throw new Error(`Backend API request failed: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
-    
+
     console.log("🔍 analyzeAudioWithAI: API Response received, mock:", result.mock);
     console.log("🧩 Gemini raw response:", result);
-    
+
     if (result.mock) {
       console.warn("🔍 analyzeAudioWithAI: Using mock data fallback for Gemini API");
       if (result.data.quality_warnings) {
@@ -218,7 +222,7 @@ Special Instructions:
       }
       return result.data;
     }
-    
+
     // Check if the response has valid data structure before using it
     if (result.data && Array.isArray(result.data.segments) && result.data.segments.length > 0) {
       console.log("✅ Using real Gemini API response");
@@ -291,14 +295,14 @@ async function applyCutsToTimeline(
   for (const segment of cutAnalysis.segments) {
     // Find the original media item for this segment
     console.log("🔍 [Debug Match] AI Segment Source File:", segment.source_file);
-    
+
     // The segment.source_file might be the original filename, so we match by mediaItem name instead of element name
     const originalElementData = audioData.find(d => {
       console.log("🔍 [Debug Match] Comparing to MediaItem Name:", d.mediaItem.name);
       // Check if the segment source_file matches the original media file name
       // This could be either the full filename or just the name part without extension
-      return d.mediaItem.name === segment.source_file || 
-             d.mediaItem.name.startsWith(segment.source_file.replace(/\.[^/.]+$/, '')); // Remove extension and match
+      return d.mediaItem.name === segment.source_file ||
+        d.mediaItem.name.startsWith(segment.source_file.replace(/\.[^/.]+$/, '')); // Remove extension and match
     });
     if (!originalElementData) {
       console.warn("❌ [Debug Match] FAILED. No match found for:", segment.source_file);
@@ -309,11 +313,11 @@ async function applyCutsToTimeline(
 
     // Trim the original media file based on the detected segment
     const trimmedBlob = await trimVideo(
-      mediaItem.file, 
-      segment.start_sec, 
+      mediaItem.file,
+      segment.start_sec,
       segment.end_sec
     );
-    
+
     // Create a new media item for the trimmed clip
     const newMediaItem: MediaItem = {
       id: `trimmed-${element.id}-${segment.segment_id}`,
@@ -338,12 +342,12 @@ async function applyCutsToTimeline(
     // Calculate start time for the new element (add to end of timeline or after last element)
     // Get the current state of the target track to account for any elements added in previous iterations
     const currentTargetTrack = useTimelineStore.getState()._tracks.find(t => t.id === targetTrackId);
-    
+
     const lastElement = currentTargetTrack?.elements
       .filter(el => el.startTime !== undefined && el.startTime !== null)
       .sort((a, b) => (b.startTime + b.duration) - (a.startTime + a.duration))[0];
-    
-    const startTime = lastElement 
+
+    const startTime = lastElement
       ? (lastElement.startTime + lastElement.duration - lastElement.trimStart - lastElement.trimEnd)
       : 0;
 
