@@ -8,6 +8,10 @@
     - **Rotation Issues:** Vertical videos are now correctly oriented (re-encoded with `libx264`).
     - **Hanging/Stalling:** Implemented "Auto-Snap" to remove micro-gaps between clips before processing.
 - **Performance:** Optimized export with `-preset ultrafast` (balanced with `-crf 23` for quality).
+- **Timeline Virtualization:** Implemented windowing in `TimelineCanvas` to only render visible clips (plus 10s buffer), drastically reducing DOM nodes and improving scroll performance.
+- **UX:** Implemented "Ghost Dragging" for media items, showing a real-time preview of the drop position and track.
+- **Fix:** Resolved unresponsive "Lock" and "Hide" buttons in the track list.
+- **Fix:** Fixed duplicate imports in `timeline-canvas.tsx`.
 
 
 ### 1. Corrigindo a importação do FFmpeg

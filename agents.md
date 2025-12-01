@@ -39,3 +39,7 @@ Finalizamos a implementação da extração de áudio, exibição da forma de on
 ## Backend Architecture Guidelines
 - **Upload Logic**: NEVER use `fileManager.uploadFile` in this Bun environment. ALWAYS use the manual `fetch` implementation with `X-Goog-Upload-Command`.
 - **MIME Types**: The frontend extracts audio, so the backend MUST treat inputs as `audio/mpeg` for the AI, even if the original file was `.mp4`.
+
+## Timeline Architecture Guidelines
+- **Virtualization**: The `TimelineCanvas` uses windowing to render only visible clips. Any changes to rendering logic MUST preserve this optimization. `TimelineTrackContent` receives a `visibleWindow` prop and filters elements accordingly.
+- **Ghost Dragging**: Dragging logic is split between `DraggableMediaItem` (sets `externalDragItem` in store) and `TimelineCanvas` (renders the ghost). Do NOT rely on the browser's default drag image for timeline items.

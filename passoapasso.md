@@ -84,3 +84,9 @@ Esta análise detalha como o projeto OpenCut pode ser configurado e estendido pa
 4.  **Current Status:** Core logic is functional.
 5.  **Known Issues:** Export progress bar UI sometimes displays internal IDs instead of clean percentages (visual only).
 6.  **Next Steps:** Polish UI/UX and investigate Gemini 3.0 model availability.
+
+## Session: Timeline Optimization & UX Improvements
+1.  **[x] Ghost Dragging**: Implemented a visual "ghost" clip that follows the mouse on the timeline track, snapping to frames and tracks. This replaces the default browser drag image for a better UX.
+2.  **[x] Track Controls**: Fixed the "Lock" and "Hide" buttons in the track list which were unresponsive. Added proper icons and wired them to the store actions.
+3.  **[x] Timeline Virtualization**: Implemented windowing in `TimelineCanvas`. It now calculates the visible time range (with a buffer) and only renders clips within that range. This solved the UI lag when dragging or scrolling in complex timelines.
+4.  **[x] Code Cleanup**: Fixed duplicate imports in `timeline-canvas.tsx` and removed redundant handlers in `TimelineTrackContent`.
