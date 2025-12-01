@@ -2,26 +2,14 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "../../ui/button";
-import {
-  Video,
-  Music,
-  TypeIcon,
-  Eye,
-  MicOff,
-  Mic,
-} from "lucide-react";
+
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   TooltipProvider,
 } from "../../ui/tooltip";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "../../ui/context-menu";
+
 import { useTimelineStore } from "@/stores/timeline-store";
 import { useMediaStore } from "@/stores/media-store";
 import { usePlaybackStore } from "@/stores/playback-store";
@@ -30,12 +18,10 @@ import { useTimelineZoom } from "@/hooks/use-timeline-zoom";
 import { processMediaFiles } from "@/lib/media-processing";
 import { toast } from "sonner";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { TimelineTrackContent } from "./timeline-track";
 import {
   TimelinePlayhead,
   useTimelinePlayheadRuler,
 } from "./timeline-playhead";
-import { SelectionBox } from "../selection-box";
 import { useSelectionBox } from "@/hooks/use-selection-box";
 import { SnapIndicator } from "../snap-indicator";
 import { SnapPoint } from "@/hooks/use-timeline-snapping";
@@ -46,14 +32,13 @@ import type {
   MediaElement,
 } from "@/types/timeline";
 import {
-  getTrackHeight,
-  getCumulativeHeightBefore,
-  getTotalTracksHeight,
   TIMELINE_CONSTANTS,
   snapTimeToFrame,
 } from "@/constants/timeline-constants";
 import { TimelineToolbar } from "./timeline-toolbar";
 import { TimelineRuler } from "./timeline-ruler";
+import { TrackList } from "./track-list";
+import { TimelineCanvas } from "./timeline-canvas";
 
 export function Timeline() {
   // Timeline shows all tracks (video, audio, effects) and their elements.
@@ -658,150 +643,37 @@ export function Timeline() {
         {/* Tracks Area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Track Labels */}
-          {tracks.length > 0 && (
-            <div
-              ref={trackLabelsRef}
-              className="w-28 shrink-0 border-r overflow-y-auto z-100 bg-panel"
-              data-track-labels
-            >
-              <ScrollArea className="w-full h-full" ref={trackLabelsScrollRef}>
-                <div className="flex flex-col gap-1">
-                  {tracks.map((track) => (
-                    <div
-                      key={track.id}
-                      className="flex items-center px-3 group"
-                      style={{ height: `${getTrackHeight(track.type)}px` }}
-                    >
-                      <div className="flex items-center justify-end flex-1 min-w-0 gap-2">
-                        {track.muted ? (
-                          <MicOff
-                            className="h-4 w-4 text-destructive cursor-pointer"
-                            onClick={() => toggleTrackMute(track.id)}
-                          />
-                        ) : (
-                          <Mic
-                            className="h-4 w-4 text-muted-foreground cursor-pointer"
-                            onClick={() => toggleTrackMute(track.id)}
-                          />
-                        )}
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                        <TrackIcon track={track} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
+          <TrackList
+            tracks={tracks}
+            toggleTrackMute={toggleTrackMute}
+            trackLabelsRef={trackLabelsRef}
+            trackLabelsScrollRef={trackLabelsScrollRef}
+          />
 
           {/* Timeline Tracks Content */}
-          <div
-            className="flex-1 relative overflow-hidden"
-            onWheel={(e) => {
-              // Check if this is horizontal scrolling - if so, don't handle it here
-              if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-                return; // Let ScrollArea handle horizontal scrolling
-              }
-              handleWheel(e);
-            }}
+          <TimelineCanvas
+            tracks={tracks}
+            zoomLevel={zoomLevel}
+            dynamicTimelineWidth={dynamicTimelineWidth}
+            tracksContainerRef={tracksContainerRef}
+            tracksScrollRef={tracksScrollRef}
+            onWheel={handleWheel}
             onMouseDown={(e) => {
               handleTimelineMouseDown(e);
               handleSelectionMouseDown(e);
             }}
             onClick={handleTimelineContentClick}
-            ref={tracksContainerRef}
-          >
-            <SelectionBox
-              startPos={selectionBox?.startPos || null}
-              currentPos={selectionBox?.currentPos || null}
-              containerRef={tracksContainerRef}
-              isActive={selectionBox?.isActive || false}
-            />
-            <ScrollArea className="w-full h-full" ref={tracksScrollRef}>
-              <div
-                className="relative flex-1"
-                style={{
-                  height: `${Math.max(
-                    200,
-                    Math.min(800, getTotalTracksHeight(tracks))
-                  )}px`,
-                  width: `${dynamicTimelineWidth}px`,
-                }}
-              >
-                {tracks.length === 0 ? (
-                  <div />
-                ) : (
-                  <>
-                    {tracks.map((track, index) => (
-                      <ContextMenu key={track.id}>
-                        <ContextMenuTrigger asChild>
-                          <div
-                            className="absolute left-0 right-0"
-                            style={{
-                              top: `${getCumulativeHeightBefore(
-                                tracks,
-                                index
-                              )}px`,
-                              height: `${getTrackHeight(track.type)}px`,
-                            }}
-                            onClick={(e) => {
-                              // If clicking empty area (not on a element), deselect all elements
-                              if (
-                                !(e.target as HTMLElement).closest(
-                                  ".timeline-element"
-                                )
-                              ) {
-                                clearSelectedElements();
-                              }
-                            }}
-                          >
-                            <TimelineTrackContent
-                              track={track}
-                              zoomLevel={zoomLevel}
-                              onSnapPointChange={handleSnapPointChange}
-                            />
-                          </div>
-                        </ContextMenuTrigger>
-                        <ContextMenuContent className="z-200">
-                          <ContextMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleTrackMute(track.id);
-                            }}
-                          >
-                            {track.muted ? "Unmute Track" : "Mute Track"}
-                          </ContextMenuItem>
-                          <ContextMenuItem onClick={(e) => e.stopPropagation()}>
-                            Track settings (soon)
-                          </ContextMenuItem>
-                        </ContextMenuContent>
-                      </ContextMenu>
-                    ))}
-                  </>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
+            selectionBox={selectionBox}
+            onSnapPointChange={handleSnapPointChange}
+            clearSelectedElements={clearSelectedElements}
+            toggleTrackMute={toggleTrackMute}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function TrackIcon({ track }: { track: TimelineTrack }) {
-  return (
-    <>
-      {track.type === "media" && (
-        <Video className="w-4 h-4 shrink-0 text-muted-foreground" />
-      )}
-      {track.type === "text" && (
-        <TypeIcon className="w-4 h-4 shrink-0 text-muted-foreground" />
-      )}
-      {track.type === "audio" && (
-        <Music className="w-4 h-4 shrink-0 text-muted-foreground" />
-      )}
-    </>
-  );
-}
+
 
 
