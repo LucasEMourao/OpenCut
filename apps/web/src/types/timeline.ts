@@ -68,6 +68,7 @@ export interface MediaItemDragData {
   id: string;
   type: MediaType;
   name: string;
+  duration?: number;
 }
 
 export interface TextItemDragData {
@@ -75,6 +76,7 @@ export interface TextItemDragData {
   type: "text";
   name: string;
   content: string;
+  duration?: number;
 }
 
 export type DragData = MediaItemDragData | TextItemDragData;
@@ -85,6 +87,8 @@ export interface TimelineTrack {
   type: TrackType;
   elements: TimelineElement[];
   muted?: boolean;
+  locked?: boolean;
+  hidden?: boolean;
   isMain?: boolean;
 }
 

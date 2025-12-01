@@ -1,20 +1,36 @@
 "use client";
 
+import { memo } from "react";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Video, Music, TypeIcon, Eye, MicOff, Mic } from "lucide-react";
+import {
+  Video,
+  Music,
+  TypeIcon,
+  Eye,
+  EyeOff,
+  MicOff,
+  Mic,
+  Lock,
+  LockOpen,
+} from "lucide-react";
 import { TimelineTrack } from "@/types/timeline";
 import { getTrackHeight } from "@/constants/timeline-constants";
 
 interface TrackListProps {
   tracks: TimelineTrack[];
   toggleTrackMute: (trackId: string) => void;
+  toggleTrackLock: (trackId: string) => void;
+  toggleTrackVisibility: (trackId: string) => void;
   trackLabelsRef: React.RefObject<HTMLDivElement>;
   trackLabelsScrollRef: React.RefObject<HTMLDivElement>;
 }
 
-export function TrackList({
+export const TrackList = memo(function TrackList({
   tracks,
   toggleTrackMute,
+  toggleTrackLock,
+  toggleTrackVisibility,
   trackLabelsRef,
   trackLabelsScrollRef,
 }: TrackListProps) {
@@ -46,7 +62,28 @@ export function TrackList({
                     onClick={() => toggleTrackMute(track.id)}
                   />
                 )}
-                <Eye className="h-4 w-4 text-muted-foreground" />
+                {track.hidden ? (
+                  <EyeOff
+                    className="h-4 w-4 text-muted-foreground cursor-pointer"
+                    onClick={() => toggleTrackVisibility(track.id)}
+                  />
+                ) : (
+                  <Eye
+                    className="h-4 w-4 text-muted-foreground cursor-pointer"
+                    onClick={() => toggleTrackVisibility(track.id)}
+                  />
+                )}
+                {track.locked ? (
+                  <Lock
+                    className="h-4 w-4 text-destructive cursor-pointer"
+                    onClick={() => toggleTrackLock(track.id)}
+                  />
+                ) : (
+                  <LockOpen
+                    className="h-4 w-4 text-muted-foreground cursor-pointer"
+                    onClick={() => toggleTrackLock(track.id)}
+                  />
+                )}
                 <TrackIcon track={track} />
               </div>
             </div>
@@ -55,7 +92,7 @@ export function TrackList({
       </ScrollArea>
     </div>
   );
-}
+});
 
 function TrackIcon({ track }: { track: TimelineTrack }) {
   return (

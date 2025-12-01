@@ -18,6 +18,7 @@ import { useTimelineZoom } from "@/hooks/use-timeline-zoom";
 import { processMediaFiles } from "@/lib/media-processing";
 import { toast } from "sonner";
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   TimelinePlayhead,
   useTimelinePlayheadRuler,
@@ -45,15 +46,21 @@ export function Timeline() {
   // You can drag media here to add it to your project.
   // elements can be trimmed, deleted, and moved.
 
-  const {
-    tracks,
-    getTotalDuration,
-    clearSelectedElements,
-    snappingEnabled,
-    setSelectedElements,
-    toggleTrackMute,
-    dragState,
-  } = useTimelineStore();
+  const tracks = useTimelineStore(useShallow((state) => state.tracks));
+  const getTotalDuration = useTimelineStore((state) => state.getTotalDuration);
+  const clearSelectedElements = useTimelineStore(
+    (state) => state.clearSelectedElements
+  );
+  const snappingEnabled = useTimelineStore((state) => state.snappingEnabled);
+  const setSelectedElements = useTimelineStore(
+    (state) => state.setSelectedElements
+  );
+  const toggleTrackMute = useTimelineStore((state) => state.toggleTrackMute);
+  const toggleTrackLock = useTimelineStore((state) => state.toggleTrackLock);
+  const toggleTrackVisibility = useTimelineStore(
+    (state) => state.toggleTrackVisibility
+  );
+  const dragState = useTimelineStore(useShallow((state) => state.dragState));
   const { mediaItems, addMediaItem } = useMediaStore();
   const { activeProject } = useProjectStore();
   const { currentTime, duration, seek, setDuration, isPlaying, toggle } =
@@ -376,7 +383,7 @@ export function Timeline() {
 
   // Old marquee system removed - using new SelectionBox component instead
 
-  const handleDragEnter = (e: React.DragEvent) => {
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
     // When something is dragged over the timeline, show overlay
     e.preventDefault();
     // Don't show overlay for timeline elements - they're handled by tracks
@@ -387,13 +394,13 @@ export function Timeline() {
     if (!isDragOver) {
       setIsDragOver(true);
     }
-  };
+  }, [isDragOver]);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-  };
+  }, []);
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
 
     // Don't update state for timeline elements - they're handled by tracks
@@ -405,9 +412,9 @@ export function Timeline() {
     if (dragCounterRef.current === 0) {
       setIsDragOver(false);
     }
-  };
+  }, []);
 
-  const handleDrop = async (e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     // When media is dropped, add it as a new track/element
     e.preventDefault();
     setIsDragOver(false);
@@ -493,7 +500,7 @@ export function Timeline() {
         setProgress(0);
       }
     }
-  };
+  }, [activeProject, addMediaItem, currentTime, mediaItems]);
 
   const dragProps = {
     onDragEnter: handleDragEnter,
@@ -575,6 +582,15 @@ export function Timeline() {
     };
   }, []);
 
+  // Combined handler for TimelineCanvas mouse down
+  const handleCanvasMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      handleTimelineMouseDown(e);
+      handleSelectionMouseDown(e);
+    },
+    [handleTimelineMouseDown, handleSelectionMouseDown]
+  );
+
   return (
     <div
       className={
@@ -646,6 +662,8 @@ export function Timeline() {
           <TrackList
             tracks={tracks}
             toggleTrackMute={toggleTrackMute}
+            toggleTrackLock={toggleTrackLock}
+            toggleTrackVisibility={toggleTrackVisibility}
             trackLabelsRef={trackLabelsRef}
             trackLabelsScrollRef={trackLabelsScrollRef}
           />
@@ -658,10 +676,7 @@ export function Timeline() {
             tracksContainerRef={tracksContainerRef}
             tracksScrollRef={tracksScrollRef}
             onWheel={handleWheel}
-            onMouseDown={(e) => {
-              handleTimelineMouseDown(e);
-              handleSelectionMouseDown(e);
-            }}
+            onMouseDown={handleCanvasMouseDown}
             onClick={handleTimelineContentClick}
             selectionBox={selectionBox}
             onSnapPointChange={handleSnapPointChange}

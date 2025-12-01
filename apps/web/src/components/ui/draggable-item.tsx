@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePlaybackStore } from "@/stores/playback-store";
+import { useTimelineStore } from "@/stores/timeline-store";
 
 export interface DraggableMediaItemProps {
   name: string;
@@ -81,11 +82,15 @@ export function DraggableMediaItem({
     setDragPosition({ x: e.clientX, y: e.clientY });
     setIsDragging(true);
 
+    // Set external drag item in store for timeline ghost
+    useTimelineStore.getState().setExternalDragItem(dragData as any);
+
     onDragStart?.(e);
   };
 
   const handleDragEnd = () => {
     setIsDragging(false);
+    useTimelineStore.getState().setExternalDragItem(null);
   };
 
   return (

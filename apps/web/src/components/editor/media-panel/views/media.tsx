@@ -494,6 +494,7 @@ function GridView({
               id: item.id,
               type: item.type,
               name: item.name,
+              duration: item.duration,
             }}
             showPlusOnDrag={false}
             onAddToTimeline={(currentTime) =>
@@ -534,6 +535,7 @@ function ListView({
               id: item.id,
               type: item.type,
               name: item.name,
+              duration: item.duration,
             }}
             showPlusOnDrag={false}
             onAddToTimeline={(currentTime) =>

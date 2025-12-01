@@ -93,6 +93,10 @@ interface TimelineStore {
   updateDragTime: (currentTime: number) => void;
   endDrag: () => void;
 
+  // External drag state (from media library)
+  externalDragItem: DragData | null;
+  setExternalDragItem: (item: DragData | null) => void;
+
   // Actions
   addTrack: (type: TrackType) => string;
   insertTrackAt: (type: TrackType, index: number) => string;
@@ -129,6 +133,8 @@ interface TimelineStore {
     pushHistory?: boolean
   ) => void;
   toggleTrackMute: (trackId: string) => void;
+  toggleTrackLock: (trackId: string) => void;
+  toggleTrackVisibility: (trackId: string) => void;
   toggleElementHidden: (trackId: string, elementId: string) => void;
 
   // Split operations for elements
@@ -872,6 +878,24 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
       );
     },
 
+    toggleTrackLock: (trackId) => {
+      get().pushHistory();
+      updateTracksAndSave(
+        get()._tracks.map((track) =>
+          track.id === trackId ? { ...track, locked: !track.locked } : track
+        )
+      );
+    },
+
+    toggleTrackVisibility: (trackId) => {
+      get().pushHistory();
+      updateTracksAndSave(
+        get()._tracks.map((track) =>
+          track.id === trackId ? { ...track, hidden: !track.hidden } : track
+        )
+      );
+    },
+
     toggleElementHidden: (trackId, elementId) => {
       get().pushHistory();
       updateTracksAndSave(
@@ -1302,6 +1326,9 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         },
       });
     },
+
+    externalDragItem: null,
+    setExternalDragItem: (item) => set({ externalDragItem: item }),
 
     // Persistence methods
     loadProjectTimeline: async (projectId) => {

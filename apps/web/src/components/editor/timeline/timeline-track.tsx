@@ -28,10 +28,12 @@ export function TimelineTrackContent({
   track,
   zoomLevel,
   onSnapPointChange,
+  visibleWindow,
 }: {
   track: TimelineTrack;
   zoomLevel: number;
   onSnapPointChange?: (snapPoint: SnapPoint | null) => void;
+  visibleWindow: { start: number; end: number };
 }) {
   const { mediaItems } = useMediaStore();
   const {
@@ -1139,50 +1141,19 @@ export function TimelineTrackContent({
         ) : (
           <>
             {track.elements.map((element) => {
+              // Virtualization check
+              const elementEnd =
+                element.startTime +
+                (element.duration - element.trimStart - element.trimEnd);
+              const isVisible =
+                elementEnd > visibleWindow.start &&
+                element.startTime < visibleWindow.end;
+
+              if (!isVisible) return null;
+
               const isSelected = selectedElements.some(
                 (c) => c.trackId === track.id && c.elementId === element.id
               );
-
-              const handleElementSplit = () => {
-                const { currentTime } = usePlaybackStore();
-                const { splitElement } = useTimelineStore();
-                const splitTime = currentTime;
-                const effectiveStart = element.startTime;
-                const effectiveEnd =
-                  element.startTime +
-                  (element.duration - element.trimStart - element.trimEnd);
-
-                if (splitTime > effectiveStart && splitTime < effectiveEnd) {
-                  const secondElementId = splitElement(
-                    track.id,
-                    element.id,
-                    splitTime
-                  );
-                  if (!secondElementId) {
-                    toast.error("Failed to split element");
-                  }
-                } else {
-                  toast.error("Playhead must be within element to split");
-                }
-              };
-
-              const handleElementDuplicate = () => {
-                const { addElementToTrack } = useTimelineStore.getState();
-                const { id, ...elementWithoutId } = element;
-                addElementToTrack(track.id, {
-                  ...elementWithoutId,
-                  name: element.name + " (copy)",
-                  startTime:
-                    element.startTime +
-                    (element.duration - element.trimStart - element.trimEnd) +
-                    0.1,
-                });
-              };
-
-              const handleElementDelete = () => {
-                const { removeElementFromTrack } = useTimelineStore.getState();
-                removeElementFromTrack(track.id, element.id);
-              };
 
               return (
                 <TimelineElement
