@@ -16,7 +16,7 @@ import { usePlaybackStore } from "@/stores/playback-store";
 import AudioWaveform from "../audio-waveform";
 import { toast } from "sonner";
 import { TimelineElementProps } from "@/types/timeline";
-import { useTimelineElementResize } from "@/hooks/use-timeline-element-resize";
+import { useTimelineResize } from "@/hooks/use-timeline-resize";
 import {
   getTrackElementClasses,
   TIMELINE_CONSTANTS,
@@ -29,6 +29,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "../../ui/context-menu";
+import { cn } from "@/lib/utils";
 
 export function TimelineElement({
   element,
@@ -40,8 +41,6 @@ export function TimelineElement({
 }: TimelineElementProps) {
   const { mediaItems } = useMediaStore();
   const {
-    updateElementTrim,
-    updateElementDuration,
     removeElementFromTrack,
     removeElementFromTrackWithRipple,
     dragState,
@@ -50,6 +49,7 @@ export function TimelineElement({
     replaceElementMedia,
     rippleEditingEnabled,
     toggleElementHidden,
+    tracks,
   } = useTimelineStore();
   const { currentTime } = usePlaybackStore();
 
@@ -59,17 +59,14 @@ export function TimelineElement({
       : null;
   const isAudio = mediaItem?.type === "audio";
 
-  const { resizing, handleResizeStart, handleResizeMove, handleResizeEnd } =
-    useTimelineElementResize({
-      element,
-      track,
-      zoomLevel,
-      onUpdateTrim: updateElementTrim,
-      onUpdateDuration: updateElementDuration,
-    });
+  const { handleResizeStart, snapLineX } = useTimelineResize({
+    tracks,
+    zoomLevel,
+    tracksContainerRef: { current: null } as any,
+  });
 
   const effectiveDuration =
-    element.duration - element.trimStart - element.trimEnd;
+    element.duration - (element.trimStart || 0) - (element.trimEnd || 0);
   const elementWidth = Math.max(
     TIMELINE_CONSTANTS.ELEMENT_MIN_WIDTH,
     effectiveDuration * TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel
@@ -83,7 +80,12 @@ export function TimelineElement({
       : element.startTime;
 
   // Element should always be positioned at startTime - trimStart only affects content, not position
-  const elementLeft = elementStartTime * 50 * zoomLevel;
+  const elementLeft = elementStartTime * TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel;
+
+  // Calculate Snap Line Position relative to this element
+  const snapLineStyle = snapLineX !== null ? {
+      left: `${snapLineX - elementLeft}px`,
+  } : {};
 
   const handleElementSplitContext = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -265,31 +267,30 @@ export function TimelineElement({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          className={`absolute top-0 h-full select-none timeline-element ${
-            isBeingDragged ? "z-50" : "z-10"
-          }`}
+          className={cn(
+            "timeline-element absolute top-1 bottom-1 rounded-md overflow-hidden cursor-pointer border border-border/50 group select-none",
+            isSelected ? "ring-2 ring-primary z-10" : "hover:ring-1 hover:ring-primary/50",
+            element.type === "video" && "bg-blue-500/20",
+            element.type === "audio" && "bg-green-500/20",
+            element.type === "image" && "bg-purple-500/20",
+            element.type === "text" && "bg-orange-500/20",
+            isBeingDragged ? "z-50" : "z-10",
+            element.hidden && "opacity-50"
+          )}
           style={{
             left: `${elementLeft}px`,
             width: `${elementWidth}px`,
           }}
           data-element-id={element.id}
           data-track-id={track.id}
-          onMouseMove={resizing ? handleResizeMove : undefined}
-          onMouseUp={resizing ? handleResizeEnd : undefined}
-          onMouseLeave={resizing ? handleResizeEnd : undefined}
+          onMouseDown={handleElementMouseDown}
+          onClick={(e) => onElementClick && onElementClick(e, element)}
+          onContextMenu={(e) =>
+            onElementMouseDown && onElementMouseDown(e, element)
+          }
         >
-          <div
-            className={`relative h-full rounded-[0.15rem] cursor-pointer overflow-hidden ${getTrackElementClasses(
-              track.type
-            )} ${isSelected ? "" : ""} ${
-              isBeingDragged ? "z-50" : "z-10"
-            } ${element.hidden ? "opacity-50" : ""}`}
-            onClick={(e) => onElementClick && onElementClick(e, element)}
-            onMouseDown={handleElementMouseDown}
-            onContextMenu={(e) =>
-              onElementMouseDown && onElementMouseDown(e, element)
-            }
-          >
+          <div className="relative w-full h-full overflow-hidden">
+            {/* Element Content */}
             <div className="absolute inset-0 flex items-center h-full">
               {renderElementContent()}
             </div>
@@ -304,16 +305,30 @@ export function TimelineElement({
               </div>
             )}
 
+            {/* Resize Handles */}
             {isSelected && (
               <>
                 <div
-                  className="absolute left-0 top-0 bottom-0 w-[0.2rem] cursor-w-resize bg-primary z-50"
-                  onMouseDown={(e) => handleResizeStart(e, element.id, "left")}
+                  className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-w-resize z-50 hover:bg-primary/50"
+                  onMouseDown={(e) => handleResizeStart(e, element, track.id, "left")}
                 />
                 <div
-                  className="absolute right-0 top-0 bottom-0 w-[0.2rem] cursor-e-resize bg-primary z-50"
-                  onMouseDown={(e) => handleResizeStart(e, element.id, "right")}
+                  className="absolute right-0 top-0 bottom-0 w-[6px] -mr-[3px] cursor-e-resize z-50 hover:bg-primary/50"
+                  onMouseDown={(e) => handleResizeStart(e, element, track.id, "right")}
                 />
+
+                {/* THE BLUE SNAP LINE */}
+                {snapLineX !== null && (
+                    <div 
+                        className="absolute w-[2px] bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] z-[100] pointer-events-none"
+                        style={{
+                            ...snapLineStyle,
+                            top: "-100vh", // Stretches up
+                            bottom: "-100vh", // Stretches down
+                            height: "300vh" // Huge height to cover all tracks
+                        }}
+                    />
+                )}
               </>
             )}
           </div>
