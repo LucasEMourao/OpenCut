@@ -107,10 +107,58 @@ export function useTimelineDrag({
         setGhostState(null);
     };
 
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!ghostState || !ghostState.trackId || !externalDragItem) return;
+
+        const { addElementToTrack, setExternalDragItem } = useTimelineStore.getState();
+
+        if (externalDragItem.type === "text") {
+            addElementToTrack(ghostState.trackId, {
+                type: "text",
+                name: externalDragItem.name || "Text",
+                content: (externalDragItem as any).content || "Default Text",
+                duration: externalDragItem.duration || TIMELINE_CONSTANTS.DEFAULT_TEXT_DURATION,
+                startTime: ghostState.time,
+                trimStart: 0,
+                trimEnd: 0,
+                fontSize: 48,
+                fontFamily: "Arial",
+                color: "#ffffff",
+                backgroundColor: "transparent",
+                textAlign: "center",
+                fontWeight: "normal",
+                fontStyle: "normal",
+                textDecoration: "none",
+                x: 0,
+                y: 0,
+                rotation: 0,
+                opacity: 1,
+            });
+        } else {
+            // Media (video, image, audio)
+            addElementToTrack(ghostState.trackId, {
+                type: "media",
+                mediaId: externalDragItem.id,
+                name: externalDragItem.name,
+                duration: externalDragItem.duration || 5,
+                startTime: ghostState.time,
+                trimStart: 0,
+                trimEnd: 0,
+            });
+        }
+
+        setExternalDragItem(null);
+        setGhostState(null);
+    };
+
     return {
         ghostState,
         externalDragItem, // Returned so the component knows if it should render
         handleDragOver,
         handleDragLeave,
+        handleDrop,
     };
 }

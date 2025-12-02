@@ -52,7 +52,7 @@ export const TimelineCanvas = memo(function TimelineCanvas({
 }: TimelineCanvasProps) {
   
   // Dragging Hook (Decoupled logic)
-  const { ghostState, externalDragItem, handleDragOver, handleDragLeave } = useTimelineDrag({
+  const { ghostState, externalDragItem, handleDragOver, handleDragLeave, handleDrop } = useTimelineDrag({
     tracks,
     zoomLevel,
     tracksScrollRef,
@@ -105,6 +105,7 @@ export const TimelineCanvas = memo(function TimelineCanvas({
       className="flex-1 relative overflow-hidden"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       onWheel={(e) => {
         if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
           return;
