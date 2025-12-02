@@ -12,6 +12,7 @@ import { TimelineTrackContent } from "./timeline-track";
 import { SelectionBox } from "../selection-box";
 import { GhostClip } from "./ghost-clip";
 import { useTimelineDrag } from "@/hooks/use-timeline-drag";
+import { useInternalDrag } from "@/hooks/use-internal-drag";
 import { TimelineTrack } from "@/types/timeline";
 import { SnapPoint } from "@/hooks/use-timeline-snapping";
 import {
@@ -56,6 +57,13 @@ export const TimelineCanvas = memo(function TimelineCanvas({
     tracks,
     zoomLevel,
     tracksScrollRef,
+  });
+
+  // Handle Internal Dragging (Moving existing clips)
+  const { snapLineX } = useInternalDrag({
+    tracks,
+    zoomLevel,
+    tracksContainerRef: tracksScrollRef,
   });
 
   // Virtualization (Original logic kept for stability in this step)
@@ -188,6 +196,17 @@ export const TimelineCanvas = memo(function TimelineCanvas({
               externalDragItem={externalDragItem}
               tracks={tracks}
               zoomLevel={zoomLevel}
+            />
+          )}
+
+          {/* Snap Guide Line - Soft Glow Style */}
+          {snapLineX !== null && (
+            <div
+              className="absolute top-0 bottom-0 z-50 border-l-2 border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+              style={{
+                left: `${snapLineX}px`,
+                pointerEvents: "none",
+              }}
             />
           )}
         </div>
