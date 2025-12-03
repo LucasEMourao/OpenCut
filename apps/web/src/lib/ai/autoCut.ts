@@ -1,5 +1,6 @@
 import { MediaItem } from "@/stores/media-store";
 import { extractAudio, trimVideo } from "../ffmpeg-utils";
+import { uploadJsonWithProgress } from "../media-processing";
 import { useTimelineStore } from "@/stores/timeline-store";
 import { useMediaStore } from "@/stores/media-store";
 import { useProjectStore } from "@/stores/project-store"; // Added import for project store
@@ -102,7 +103,13 @@ export async function detectAutomaticCuts(): Promise<void> {
     }));
 
     // Call the backend API to analyze audio and generate cuts
-    const cutAnalysis = await analyzeAudioWithAI(audioFiles);
+    const cutAnalysis = await analyzeAudioWithAI(audioFiles, (percent) => {
+      if (percent === 100) {
+        toast.loading("Processing AI analysis...", { id: "auto-cut-progress" });
+      } else {
+        toast.loading(`Uploading audio... ${Math.round(percent)}%`, { id: "auto-cut-progress" });
+      }
+    });
 
     // Apply the detected cuts to the timeline
     await applyCutsToTimeline(cutAnalysis, selectedElements, audioData);
@@ -121,7 +128,10 @@ export async function detectAutomaticCuts(): Promise<void> {
 /**
  * Calls the backend API to analyze audio and return cut suggestions
  */
-async function analyzeAudioWithAI(audioFiles: Array<{ filename: string; data: string }>): Promise<AutoCutResponse> {
+async function analyzeAudioWithAI(
+  audioFiles: Array<{ filename: string; data: string }>,
+  onProgress?: (percent: number) => void
+): Promise<AutoCutResponse> {
   const systemPrompt = `You are a professional video editing assistant specialized in social media content creation. Your task is to analyze multiple audio takes and generate a precise editing blueprint for stitching the optimal TikTok video.
 
 Inputs: Multiple audio files (MP3/WAV).
@@ -189,28 +199,19 @@ Special Instructions:
   console.log("🔍 analyzeAudioWithAI: Starting API call to /api/gemini");
   console.log("🔍 analyzeAudioWithAI: Number of audio files:", audioFiles.length);
 
+  console.log("🔍 analyzeAudioWithAI: Starting API call to /api/gemini");
+  console.log("🔍 analyzeAudioWithAI: Number of audio files:", audioFiles.length);
+
   try {
-    // Call the secure backend API route
-    const response = await fetch("/api/gemini", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const result = await uploadJsonWithProgress<any>(
+      "/api/gemini",
+      {
         audioFiles,
         systemPrompt,
         userPrompt
-      }),
-    });
-
-    console.log("🔍 analyzeAudioWithAI: Response status:", response.status);
-
-    if (!response.ok) {
-      console.error("🔍 analyzeAudioWithAI: Response not OK:", response.status, response.statusText);
-      throw new Error(`Backend API request failed: ${response.status} ${response.statusText}`);
-    }
-
-    const result = await response.json();
+      },
+      onProgress
+    );
 
     console.log("🔍 analyzeAudioWithAI: API Response received, mock:", result.mock);
     console.log("🧩 Gemini raw response:", result);

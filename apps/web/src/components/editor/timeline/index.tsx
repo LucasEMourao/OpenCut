@@ -130,7 +130,7 @@ export function Timeline() {
     containerRef: tracksContainerRef,
     playheadRef,
     onSelectionComplete: (elements) => {
-      console.log(JSON.stringify({ onSelectionComplete: elements.length }));
+
       setSelectedElements(elements);
     },
   });
@@ -151,31 +151,14 @@ export function Timeline() {
   const handleTimelineMouseDown = useCallback((e: React.MouseEvent) => {
     // Only track mouse down on timeline background areas (not elements)
     const target = e.target as HTMLElement;
-    console.log(
-      JSON.stringify({
-        debug_mousedown: "START",
-        target_class: target.className,
-        target_parent_class: target.parentElement?.className,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        timeStamp: e.timeStamp,
-      })
-    );
+
 
     const isTimelineBackground =
       !target.closest(".timeline-element") &&
       !playheadRef.current?.contains(target) &&
       !target.closest("[data-track-labels]");
 
-    console.log(
-      JSON.stringify({
-        debug_mousedown: "CHECK",
-        isTimelineBackground,
-        hasTimelineElement: !!target.closest(".timeline-element"),
-        hasPlayhead: !!playheadRef.current?.contains(target),
-        hasTrackLabels: !!target.closest("[data-track-labels]"),
-      })
-    );
+
 
     if (isTimelineBackground) {
       mouseTrackingRef.current = {
@@ -184,37 +167,16 @@ export function Timeline() {
         downY: e.clientY,
         downTime: e.timeStamp,
       };
-      console.log(
-        JSON.stringify({
-          debug_mousedown: "TRACKED",
-          mouseTracking: mouseTrackingRef.current,
-        })
-      );
+
     } else {
-      console.log(
-        JSON.stringify({
-          debug_mousedown: "IGNORED - not timeline background",
-        })
-      );
+
     }
   }, []);
 
   // Timeline content click to seek handler
   const handleTimelineContentClick = useCallback(
     (e: React.MouseEvent) => {
-      console.log(
-        JSON.stringify({
-          debug_click: "START",
-          target: (e.target as HTMLElement).className,
-          target_parent: (e.target as HTMLElement).parentElement?.className,
-          mouseTracking: mouseTrackingRef.current,
-          isSelecting,
-          justFinishedSelecting,
-          clickX: e.clientX,
-          clickY: e.clientY,
-          timeStamp: e.timeStamp,
-        })
-      );
+
 
       const { isMouseDown, downX, downY, downTime } = mouseTrackingRef.current;
 
@@ -228,12 +190,7 @@ export function Timeline() {
 
       // Only process as click if we tracked a mouse down on timeline background
       if (!isMouseDown) {
-        console.log(
-          JSON.stringify({
-            debug_click: "REJECTED - no mousedown",
-            mouseTracking: mouseTrackingRef.current,
-          })
-        );
+
         return;
       }
 
@@ -243,67 +200,37 @@ export function Timeline() {
       const deltaTime = e.timeStamp - downTime;
 
       if (deltaX > 5 || deltaY > 5 || deltaTime > 500) {
-        console.log(
-          JSON.stringify({
-            debug_click: "REJECTED - movement too large",
-            deltaX,
-            deltaY,
-            deltaTime,
-          })
-        );
+
         return;
       }
 
       // Don't seek if this was a selection box operation
       if (isSelecting || justFinishedSelecting) {
-        console.log(
-          JSON.stringify({
-            debug_click: "REJECTED - selection operation",
-            isSelecting,
-            justFinishedSelecting,
-          })
-        );
+
         return;
       }
 
       // Don't seek if clicking on timeline elements, but still deselect
       if ((e.target as HTMLElement).closest(".timeline-element")) {
-        console.log(
-          JSON.stringify({
-            debug_click: "REJECTED - clicked timeline element",
-          })
-        );
+
         return;
       }
 
       // Don't seek if clicking on playhead
       if (playheadRef.current?.contains(e.target as Node)) {
-        console.log(
-          JSON.stringify({
-            debug_click: "REJECTED - clicked playhead",
-          })
-        );
+
         return;
       }
 
       // Don't seek if clicking on track labels
       if ((e.target as HTMLElement).closest("[data-track-labels]")) {
-        console.log(
-          JSON.stringify({
-            debug_click: "REJECTED - clicked track labels",
-          })
-        );
+
         clearSelectedElements();
         return;
       }
 
       // Clear selected elements when clicking empty timeline area
-      console.log(
-        JSON.stringify({
-          debug_click: "PROCEEDING - clearing elements",
-          clearingSelectedElements: true,
-        })
-      );
+
       clearSelectedElements();
 
       // Determine if we're clicking in ruler or tracks area
@@ -311,16 +238,7 @@ export function Timeline() {
         "[data-ruler-area]"
       );
 
-      console.log(
-        JSON.stringify({
-          debug_click: "CALCULATING POSITION",
-          isRulerClick,
-          clientX: e.clientX,
-          clientY: e.clientY,
-          target_element: (e.target as HTMLElement).tagName,
-          target_class: (e.target as HTMLElement).className,
-        })
-      );
+
 
       let mouseX: number;
       let scrollLeft = 0;
@@ -329,11 +247,7 @@ export function Timeline() {
         // Calculate based on ruler position
         const rulerContent = rulerScrollRef.current;
         if (!rulerContent) {
-          console.log(
-            JSON.stringify({
-              debug_click: "ERROR - no ruler container found",
-            })
-          );
+
           return;
         }
         const rect = rulerContent.getBoundingClientRect();

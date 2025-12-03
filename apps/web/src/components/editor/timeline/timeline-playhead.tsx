@@ -99,25 +99,7 @@ export function TimelinePlayhead({
     Math.min(rightBoundary, rawLeftPosition)
   );
 
-  // Debug logging when playhead might go outside
-  if (rawLeftPosition < leftBoundary || rawLeftPosition > rightBoundary) {
-    console.log(
-      "PLAYHEAD VISUAL DEBUG:",
-      JSON.stringify({
-        playheadPosition,
-        timelinePosition,
-        trackLabelsWidth,
-        scrollLeft,
-        rawLeftPosition,
-        constrainedLeftPosition: leftPosition,
-        leftBoundary,
-        rightBoundary,
-        timelineContentWidth,
-        viewportWidth,
-        zoomLevel,
-      })
-    );
-  }
+
 
   return (
     <div

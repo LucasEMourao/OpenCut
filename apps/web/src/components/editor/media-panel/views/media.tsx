@@ -92,9 +92,10 @@ export function MediaView() {
     setProgress(0);
     try {
       // Process files (extract metadata, generate thumbnails, etc.)
-      const processedItems = await processMediaFiles(files, (p) =>
-        setProgress(p)
-      );
+      const processedItems = await processMediaFiles(files, (p) => {
+        // Ensure progress updates are reflected in UI
+        setProgress(p);
+      });
       // Add each processed media item to the store
       for (const item of processedItems) {
         await addMediaItem(activeProject.id, item);
@@ -303,7 +304,13 @@ export function MediaView() {
               ) : (
                 <CloudUpload className="h-4 w-4" />
               )}
-              <span>Upload</span>
+              <span>
+                {isProcessing
+                  ? progress === 100
+                    ? "Processing..."
+                    : `${Math.round(progress)}%`
+                  : "Upload"}
+              </span>
             </Button>
             <div className="flex items-center gap-0">
               <TooltipProvider>
