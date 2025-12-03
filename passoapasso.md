@@ -90,3 +90,15 @@ Esta análise detalha como o projeto OpenCut pode ser configurado e estendido pa
 2.  **[x] Track Controls**: Fixed the "Lock" and "Hide" buttons in the track list which were unresponsive. Added proper icons and wired them to the store actions.
 3.  **[x] Timeline Virtualization**: Implemented windowing in `TimelineCanvas`. It now calculates the visible time range (with a buffer) and only renders clips within that range. This solved the UI lag when dragging or scrolling in complex timelines.
 4.  **[x] Code Cleanup**: Fixed duplicate imports in `timeline-canvas.tsx` and removed redundant handlers in `TimelineTrackContent`.
+
+### ✅ FASE 2: Drag & Drop - Movimento (Concluída)
+* **[x] Desacoplamento:** Hooks separados para Ghost e Drop.
+* **[x] Lógica de Snap:** Magnetic Snap e Prevenção de Colisão (Revert).
+
+### ✅ FASE 3: Redimensionamento / Trim (Concluída)
+* **[x] Hook `useTimelineResize`:** Implementado com física de "Parede" (Clamping).
+* **[x] Visual:** Correção do CSS Clipping para exibir a Linha Azul globalmente.
+
+### ⚠️ FASE 4: Otimização (Parcialmente Concluída)
+* **[x] Limpeza de Logs:** Removidos logs de debug que travavam o scroll.
+* **[ ] Otimização Avançada:** A implementação de `requestAnimationFrame` com manipulação direta do DOM para a Agulha (Playhead) foi analisada e postergada para evitar riscos à estabilidade atual. O código atual é funcional.

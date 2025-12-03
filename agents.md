@@ -20,10 +20,21 @@ Este arquivo rastreia o progresso do desenvolvimento do editor de vídeo simplif
     - Adicionado botão "Detect Automatic Cuts" à barra de ferramentas do timeline.
     - Implementada lógica para extrair áudio dos elementos selecionados e aplicar os cortes identificados pela IA ao timeline.
     - Garantida manutenção do histórico de desfazer/refazer e limpeza adequada de recursos.
+- **Passo 4 (Refatoração Timeline - Movimento):** A lógica de Drag & Drop foi totalmente reescrita.
+    - Criado hook `useTimelineDrag` para gerenciar o "Ghost" (visual) separadamente da lógica de drop.
+    - Criado hook `useInternalDrag` para mover clipes existentes.
+    - Implementado **Magnetic Snap Suave**: Clipes são atraídos por bordas próximas (15px).
+    - Implementado **Prevenção de Colisão**: "Free Drag, Strict Drop". Se soltar em cima de outro, o movimento é revertido.
+- **Passo 5 (Refatoração Timeline - Redimensionamento):** A lógica de Trim foi modernizada.
+    - Criado hook `useTimelineResize` substituindo a lógica antiga.
+    - Implementado **Wall Clamping**: O redimensionamento "bate na parede" do clipe vizinho e para.
+    - Corrigido bug visual onde a linha guia azul (Snap Line) ficava invisível devido a `overflow: hidden`.
+- **Passo 6 (Otimização Inicial):** Limpeza massiva de logs.
+    - Removidos logs de debug (`mousemove`, `PLAYHEAD DEBUG`) que causavam gargalo na thread principal durante a rolagem.
 
 ## Status Atual
 
-**Próximo Passo:** Teste da Funcionalidade.
+**Próximo Passo:** Teste de Usuário (Beta). A refatoração do Core da Timeline (Mover/Cortar) está concluída e estável. Otimizações avançadas de performance (Direct DOM) foram postergadas para manter a estabilidade do código.
 
 Finalizamos a implementação da extração de áudio, exibição da forma de onda e detecção automática de cortes com IA. O próximo passo é executar a aplicação e testar o fluxo completo: selecionar elementos de mídia, aplicar a detecção automática de cortes com IA e verificar se os trechos otimizados são adicionados corretamente ao timeline.
 

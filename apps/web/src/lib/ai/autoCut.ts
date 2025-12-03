@@ -1,5 +1,5 @@
 import { MediaItem } from "@/stores/media-store";
-import { extractAudio, trimVideo } from "../ffmpeg-utils";
+import { extractAudio } from "../ffmpeg-utils";
 import { uploadJsonWithProgress } from "../media-processing";
 import { useTimelineStore } from "@/stores/timeline-store";
 import { useMediaStore } from "@/stores/media-store";
@@ -113,9 +113,6 @@ export async function detectAutomaticCuts(): Promise<void> {
 
     // Apply the detected cuts to the timeline
     await applyCutsToTimeline(cutAnalysis, selectedElements, audioData);
-
-    // Success notification
-    toast.success("Cuts detected and applied to timeline", { id: "auto-cut-progress" });
 
   } catch (error) {
     console.error("Error in automatic cut detection:", error);
@@ -283,85 +280,69 @@ async function applyCutsToTimeline(
   selectedElements: Array<{ trackId: string; element: TimelineElement; track: any }>,
   audioData: Array<{ id: string; audioBlob: Blob; audioUrl: string; mediaItem: MediaItem; element: TimelineElement }>
 ): Promise<void> {
-  const timelineStore = useTimelineStore.getState();
   const mediaStore = useMediaStore.getState();
+  const activeProject = useProjectStore.getState().activeProject;
 
-  // Push history state before making changes
-  timelineStore.pushHistory();
+  // SAFETY: Limit segments to prevent infinite loops or crashes
+  const MAX_CLIPS = 50;
+  const segmentsToProcess = cutAnalysis.segments || [];
 
-  // Find a suitable track to add the new trimmed elements
-  let targetTrackId = selectedElements[0].trackId;
-  const targetTrack = timelineStore._tracks.find(t => t.id === targetTrackId);
+  if (segmentsToProcess.length > MAX_CLIPS) {
+    console.warn(`Auto-Cut: Limiting segments from ${segmentsToProcess.length} to ${MAX_CLIPS}`);
+    toast.warning(`Result limited to ${MAX_CLIPS} clips for performance`);
+    segmentsToProcess.length = MAX_CLIPS;
+  }
 
-  for (const segment of cutAnalysis.segments) {
+  let addedCount = 0;
+
+  for (let index = 0; index < segmentsToProcess.length; index++) {
+    const segment = segmentsToProcess[index];
+
     // Find the original media item for this segment
-    console.log("🔍 [Debug Match] AI Segment Source File:", segment.source_file);
-
-    // The segment.source_file might be the original filename, so we match by mediaItem name instead of element name
     const originalElementData = audioData.find(d => {
-      console.log("🔍 [Debug Match] Comparing to MediaItem Name:", d.mediaItem.name);
       // Check if the segment source_file matches the original media file name
       // This could be either the full filename or just the name part without extension
       return d.mediaItem.name === segment.source_file ||
         d.mediaItem.name.startsWith(segment.source_file.replace(/\.[^/.]+$/, '')); // Remove extension and match
     });
+
     if (!originalElementData) {
       console.warn("❌ [Debug Match] FAILED. No match found for:", segment.source_file);
       continue;
     }
 
-    const { element, mediaItem } = originalElementData;
+    const { mediaItem } = originalElementData;
+    const rawDuration = segment.end_sec - segment.start_sec;
+    const cleanDuration = Math.round(rawDuration * 10000) / 10000;
 
-    // Trim the original media file based on the detected segment
-    const trimmedBlob = await trimVideo(
-      mediaItem.file,
-      segment.start_sec,
-      segment.end_sec
-    );
+    // Create a unique ID for this new "virtual" media item
+    const newMediaItemId = crypto.randomUUID();
 
-    // Create a new media item for the trimmed clip
-    const newMediaItem: MediaItem = {
-      id: `trimmed-${element.id}-${segment.segment_id}`,
-      name: `${mediaItem.name}-trimmed-${segment.segment_id}`,
-      type: mediaItem.type,
-      file: new File([trimmedBlob], `trimmed-${mediaItem.name}-${segment.segment_id}.${mediaItem.type}`),
-      url: URL.createObjectURL(trimmedBlob),
-      thumbnailUrl: mediaItem.thumbnailUrl,
-      extractedAudioUrl: mediaItem.extractedAudioUrl,
-      duration: segment.end_sec - segment.start_sec,
-      width: mediaItem.width,
-      height: mediaItem.height,
-      fps: mediaItem.fps,
-    };
-
-    // Add the new media item to the store
-    const activeProject = useProjectStore.getState().activeProject;
+    // 1. Add to Media Gallery (Virtual Item)
     if (activeProject) {
-      await mediaStore.addMediaItem(activeProject.id, newMediaItem);
+      await mediaStore.addMediaItem(activeProject.id, {
+        id: newMediaItemId,
+        name: `${mediaItem.name} (Cut ${index + 1})`,
+        type: mediaItem.type,
+        file: mediaItem.file, // Reference the same file
+        url: mediaItem.url, // Reference the same URL
+        thumbnailUrl: mediaItem.thumbnailUrl,
+        extractedAudioUrl: mediaItem.extractedAudioUrl,
+        duration: cleanDuration, // Duration of the CUT
+        startTime: segment.start_sec, // Start time in the source file
+        width: mediaItem.width,
+        height: mediaItem.height,
+        fps: mediaItem.fps,
+      });
+      addedCount++;
     }
+  }
 
-    // Calculate start time for the new element (add to end of timeline or after last element)
-    // Get the current state of the target track to account for any elements added in previous iterations
-    const currentTargetTrack = useTimelineStore.getState()._tracks.find(t => t.id === targetTrackId);
-
-    const lastElement = currentTargetTrack?.elements
-      .filter(el => el.startTime !== undefined && el.startTime !== null)
-      .sort((a, b) => (b.startTime + b.duration) - (a.startTime + a.duration))[0];
-
-    const startTime = lastElement
-      ? (lastElement.startTime + lastElement.duration - lastElement.trimStart - lastElement.trimEnd)
-      : 0;
-
-    // Add the new trimmed element to the timeline
-    useTimelineStore.getState().addElementToTrack(targetTrackId, {
-      type: "media",
-      mediaId: newMediaItem.id,
-      name: newMediaItem.name,
-      duration: newMediaItem.duration || 5,
-      startTime,
-      trimStart: 0,
-      trimEnd: 0,
-    });
+  // Final Feedback
+  if (addedCount > 0) {
+    toast.success(`Generated ${addedCount} clips in your Media Library`, { id: "auto-cut-progress" });
+  } else {
+    toast.info("No valid cuts were detected.", { id: "auto-cut-progress" });
   }
 
   // Clean up object URLs

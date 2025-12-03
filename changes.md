@@ -1,6 +1,15 @@
 ## Diário de mudanças da sessão atual
 
 ### [Unreleased]
+
+### Timeline Core Refactor
+- **Architecture:** Decoupled drag/resize logic from UI components into specialized hooks (`useTimelineDrag`, `useInternalDrag`, `useTimelineResize`).
+- **Feature (Move):** Added "Soft Magnetic Snap" and "Collision Revert". Visual Blue Line added for alignment guidance.
+- **Feature (Resize):** Implemented "Wall Physics" (clamping) to prevent overlapping during trim.
+- **Fix:** Resolved `Maximum update depth exceeded` loop in `TimelineTrack`.
+- **Fix:** Fixed invisible resize handles/snap lines by moving overlays outside the `overflow-hidden` container in `TimelineElement`.
+- **Performance:** Removed excessive console logging from Playhead and Mouse Listeners, significantly improving scroll smoothness.
+
 - **Backend Refactor:** Migrated `/api/gemini` to use **Google File API** with a manual Resumable Upload protocol (bypassing SDK incompatibilities with Bun).
 - **Fix:** Solved `400 Bad Request` and `413 Payload Too Large` errors by enforcing correct MIME types (`audio/mpeg`) and streaming large files via File API.
 - **Export Engine:** Completely rewrote `timeline-export.ts` to use a **Filter Complex** (`[0:v][0:a]...`) which solves:

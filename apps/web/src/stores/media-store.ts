@@ -17,6 +17,7 @@ export interface MediaItem {
   width?: number; // For video/image width
   height?: number; // For video/image height
   fps?: number; // For video frame rate
+  startTime?: number; // For virtual clips (cuts)
   // Text-specific properties
   content?: string; // Text content
   fontSize?: number; // Font size
@@ -33,7 +34,7 @@ interface MediaStore {
   // Actions - now require projectId
   addMediaItem: (
     projectId: string,
-    item: Omit<MediaItem, "id">
+    item: Omit<MediaItem, "id"> & { id?: string }
   ) => Promise<void>;
   removeMediaItem: (projectId: string, id: string) => Promise<void>;
   loadProjectMedia: (projectId: string) => Promise<void>;
@@ -68,7 +69,7 @@ export const getFileType = (file: File): MediaType | null => {
   ) {
     return "image";
   }
-  
+
   if (
     lowerCaseName.endsWith('.mp4') ||
     lowerCaseName.endsWith('.webm') ||
@@ -82,7 +83,7 @@ export const getFileType = (file: File): MediaType | null => {
   ) {
     return "video";
   }
-  
+
   if (
     lowerCaseName.endsWith('.mp3') ||
     lowerCaseName.endsWith('.wav') ||
@@ -202,8 +203,8 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
 
   addMediaItem: async (projectId, item) => {
     const newItem: MediaItem = {
+      id: item.id || generateUUID(),
       ...item,
-      id: generateUUID(),
     };
 
     // Add to local state immediately for UI responsiveness
