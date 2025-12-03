@@ -36,6 +36,11 @@ Este arquivo rastreia o progresso do desenvolvimento do editor de vídeo simplif
 
 **Próximo Passo:** Teste de Usuário (Beta). A refatoração do Core da Timeline (Mover/Cortar) está concluída e estável. Otimizações avançadas de performance (Direct DOM) foram postergadas para manter a estabilidade do código.
 
+- **Passo 7 (UI Polish):** Corrigida a barra de progresso de upload (adicionados marcos intermediários em `processMediaFiles`).
+- **Passo 8 (Auto-Cut Strategy Pivot):** Refatorado o Auto-Cut para adicionar clipes à **Galeria de Mídia** em vez do Timeline. Isso previne bugs de sobreposição e travamentos do navegador.
+
+**Status:** Refatoração Completa. Pronto para Teste Beta.
+
 Finalizamos a implementação da extração de áudio, exibição da forma de onda e detecção automática de cortes com IA. O próximo passo é executar a aplicação e testar o fluxo completo: selecionar elementos de mídia, aplicar a detecção automática de cortes com IA e verificar se os trechos otimizados são adicionados corretamente ao timeline.
 
 ## AI Feature Guidelines (Automatic Cut Detection)

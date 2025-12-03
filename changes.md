@@ -60,3 +60,6 @@ Tudo isso está em TypeScript no app Next.js (ramo `simplified-editor`).
 - **AI Hallucination**: Fixed a bug where the AI was ignoring real files and using example filenames (`take_1.mp3`) by injecting real filenames into the prompt.
 - **API Reliability**: Solved 404/400/503 errors by enforcing the `gemini-2.5-flash` model on the `v1beta` endpoint.
 - **Infinite Loading**: Resolved the "Infinite Loading" issue during timeline export. Implemented an **auto-snapping algorithm** in `timeline-export.ts` that eliminates micro-gaps (floating-point errors) between clips before processing, preventing FFmpeg hangs.
+- **UX Change:** Auto-Cut now generates clips in the Media Gallery for manual placement.
+- **Fix:** Upload progress bar now updates correctly during local processing.
+- **Fix:** Properties panel now shows actual clip names.

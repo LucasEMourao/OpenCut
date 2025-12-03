@@ -99,6 +99,11 @@ Esta análise detalha como o projeto OpenCut pode ser configurado e estendido pa
 * **[x] Hook `useTimelineResize`:** Implementado com física de "Parede" (Clamping).
 * **[x] Visual:** Correção do CSS Clipping para exibir a Linha Azul globalmente.
 
-### ⚠️ FASE 4: Otimização (Parcialmente Concluída)
+### ✅ FASE 4: Otimização (Concluída)
 * **[x] Limpeza de Logs:** Removidos logs de debug que travavam o scroll.
-* **[ ] Otimização Avançada:** A implementação de `requestAnimationFrame` com manipulação direta do DOM para a Agulha (Playhead) foi analisada e postergada para evitar riscos à estabilidade atual. O código atual é funcional.
+* **[x] Throttling da Agulha:** Otimização da renderização do Playhead.
+
+### ✅ FASE 5: UI Polish & Stability (Concluída)
+* **[x] Upload Progress:** Barra de progresso granular para processamento local.
+* **[x] Auto-Cut Stability:** Refatorado para usar a Galeria de Mídia (Sidebar) em vez de inserção direta no Timeline.
+* **[x] Properties Panel:** Exibição correta dos nomes dos clipes.
