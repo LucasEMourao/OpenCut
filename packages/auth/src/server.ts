@@ -11,17 +11,22 @@ const {
   UPSTASH_REDIS_REST_TOKEN,
 } = keys();
 
-const redis = new Redis({
-  url: UPSTASH_REDIS_REST_URL,
-  token: UPSTASH_REDIS_REST_TOKEN,
-});
+const baseURL = NEXT_PUBLIC_BETTER_AUTH_URL ?? "http://localhost:3000";
+const secret = BETTER_AUTH_SECRET ?? "dev-secret";
+
+const redis =
+  UPSTASH_REDIS_REST_URL && UPSTASH_REDIS_REST_TOKEN
+    ? new Redis({
+        url: UPSTASH_REDIS_REST_URL,
+        token: UPSTASH_REDIS_REST_TOKEN,
+      })
+    : null;
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
     usePlural: true,
   }),
-  secret: BETTER_AUTH_SECRET,
   user: {
     deleteUser: {
       enabled: true,
@@ -34,17 +39,22 @@ export const auth = betterAuth({
     storage: "secondary-storage",
     customStorage: {
       get: async (key) => {
+        if (!redis) return undefined;
+
         const value = await redis.get(key);
         return value as RateLimit | undefined;
       },
       set: async (key, value) => {
+        if (!redis) return;
+
         await redis.set(key, value);
       },
     },
   },
-  baseURL: NEXT_PUBLIC_BETTER_AUTH_URL,
+  baseURL,
   appName: "OpenCut",
   trustedOrigins: ["http://localhost:3000"],
+  secret,
 });
 
 export type Auth = typeof auth;

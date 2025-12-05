@@ -9,6 +9,12 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 function getDb() {
   if (!_db) {
+    if (!DATABASE_URL) {
+      throw new Error(
+        "DATABASE_URL is not set. Provide it to enable database features."
+      );
+    }
+
     const client = postgres(DATABASE_URL);
     _db = drizzle(client, { schema });
   }

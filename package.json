@@ -22,6 +22,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@types/node": "^24.5.2",
+    "ffmpeg.js": "^4.2.9003",
     "next": "^15.3.4",
     "wavesurfer.js": "^7.9.8"
   },

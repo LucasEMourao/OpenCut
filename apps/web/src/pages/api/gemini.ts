@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import crypto from "crypto";
+import dotenv from "dotenv";
 
 // Configuration to allow larger payloads for the initial upload
 export const config = {
@@ -34,6 +35,14 @@ interface AutoCutResponse {
     quality_warnings: string[];
   };
   segments: Segment[];
+}
+
+// Ensure the key is loaded in monorepo dev (when .env lives at workspace root)
+if (!process.env.GEMINI_API_KEY) {
+  const rootEnvPath = path.resolve(process.cwd(), "..", "..", ".env");
+  dotenv.config({ path: rootEnvPath });
+  // Fallback to a local .env in the app directory if present
+  dotenv.config();
 }
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;

@@ -10,7 +10,8 @@ export const keys = () =>
       DATABASE_URL: z
         .string()
         .startsWith("postgres://")
-        .or(z.string().startsWith("postgresql://")),
+        .or(z.string().startsWith("postgresql://"))
+        .optional(),
     },
     runtimeEnv: {
       NODE_ENV: process.env.NODE_ENV,
