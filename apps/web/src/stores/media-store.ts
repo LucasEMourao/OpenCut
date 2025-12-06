@@ -18,6 +18,7 @@ export interface MediaItem {
   height?: number; // For video/image height
   fps?: number; // For video frame rate
   startTime?: number; // For virtual clips (cuts)
+  cutDuration?: number; // Explicit duration of a virtual cut
   // Text-specific properties
   content?: string; // Text content
   fontSize?: number; // Font size

@@ -224,9 +224,9 @@ export function MediaView() {
               <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded">
                 <Video className="h-6 w-6 text-white drop-shadow-md" />
               </div>
-              {item.duration && (
+              {(item.cutDuration ?? item.duration) && (
                 <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
-                  {formatDuration(item.duration)}
+                  {formatDuration(item.cutDuration ?? item.duration!)}
                 </div>
               )}
             </div>
@@ -236,9 +236,9 @@ export function MediaView() {
             <div className="w-full h-full bg-muted/30 flex flex-col items-center justify-center text-muted-foreground rounded">
               <Video className="h-6 w-6 mb-1" />
               <span className="text-xs">Video</span>
-              {item.duration && (
+              {(item.cutDuration ?? item.duration) && (
                 <span className="text-xs opacity-70">
-                  {formatDuration(item.duration)}
+                  {formatDuration(item.cutDuration ?? item.duration!)}
                 </span>
               )}
             </div>
@@ -249,9 +249,9 @@ export function MediaView() {
           <div className="w-full h-full bg-linear-to-br from-green-500/20 to-emerald-500/20 flex flex-col items-center justify-center text-muted-foreground rounded border border-green-500/20">
             <Music className="h-6 w-6 mb-1" />
             <span className="text-xs">Audio</span>
-            {item.duration && (
+            {(item.cutDuration ?? item.duration) && (
               <span className="text-xs opacity-70">
-                {formatDuration(item.duration)}
+                {formatDuration(item.cutDuration ?? item.duration!)}
               </span>
             )}
           </div>
@@ -501,7 +501,8 @@ function GridView({
               id: item.id,
               type: item.type,
               name: item.name,
-              duration: item.duration,
+              duration: item.cutDuration ?? item.duration,
+              startTime: item.startTime,
             }}
             showPlusOnDrag={false}
             onAddToTimeline={(currentTime) =>
@@ -542,7 +543,8 @@ function ListView({
               id: item.id,
               type: item.type,
               name: item.name,
-              duration: item.duration,
+              duration: item.cutDuration ?? item.duration,
+              startTime: item.startTime,
             }}
             showPlusOnDrag={false}
             onAddToTimeline={(currentTime) =>

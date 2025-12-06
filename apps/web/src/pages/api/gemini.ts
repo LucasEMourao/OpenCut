@@ -10,7 +10,7 @@ import dotenv from "dotenv";
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '50mb',
+      sizeLimit: "50mb",
     },
   },
 };
@@ -48,7 +48,12 @@ if (!process.env.GEMINI_API_KEY) {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Model Priority List - Strictly as requested
-const MODELS = ["gemini-3.0-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+const MODELS = [
+  "gemini-3.0-flash",
+  "gemini-2.5-pro",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+];
 
 // Strict Schema Definition for Structured Output
 const autoCutSchema = {
@@ -59,10 +64,21 @@ const autoCutSchema = {
       properties: {
         total_duration: { type: SchemaType.NUMBER },
         segment_count: { type: SchemaType.NUMBER },
-        takes_used: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        quality_warnings: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        takes_used: {
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
+        },
+        quality_warnings: {
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
+        },
       },
-      required: ["total_duration", "segment_count", "takes_used", "quality_warnings"],
+      required: [
+        "total_duration",
+        "segment_count",
+        "takes_used",
+        "quality_warnings",
+      ],
     },
     segments: {
       type: SchemaType.ARRAY,
@@ -78,7 +94,14 @@ const autoCutSchema = {
           transition_in: { type: SchemaType.STRING },
           transition_out: { type: SchemaType.STRING },
         },
-        required: ["segment_id", "source_file", "start_sec", "end_sec", "content", "selection_reason"],
+        required: [
+          "segment_id",
+          "source_file",
+          "start_sec",
+          "end_sec",
+          "content",
+          "selection_reason",
+        ],
       },
     },
   },
@@ -92,24 +115,27 @@ function getMimeType(filename: string): string {
   const lowerName = filename.toLowerCase();
   console.log(`🔍 Helper getMimeType checking: ${lowerName}`); // Debug log
 
-  if (lowerName.endsWith('.mp3')) return 'audio/mpeg';
-  if (lowerName.endsWith('.wav')) return 'audio/wav';
-  if (lowerName.endsWith('.aac')) return 'audio/aac';
-  if (lowerName.endsWith('.ogg')) return 'audio/ogg';
-  if (lowerName.endsWith('.flac')) return 'audio/flac';
-  if (lowerName.endsWith('.m4a')) return 'audio/mp4';
+  if (lowerName.endsWith(".mp3")) return "audio/mpeg";
+  if (lowerName.endsWith(".wav")) return "audio/wav";
+  if (lowerName.endsWith(".aac")) return "audio/aac";
+  if (lowerName.endsWith(".ogg")) return "audio/ogg";
+  if (lowerName.endsWith(".flac")) return "audio/flac";
+  if (lowerName.endsWith(".m4a")) return "audio/mp4";
 
   // VIDEO FORMATS
-  if (lowerName.endsWith('.mp4')) return 'video/mp4';
-  if (lowerName.endsWith('.mov')) return 'video/quicktime';
-  if (lowerName.endsWith('.webm')) return 'video/webm';
-  if (lowerName.endsWith('.avi')) return 'video/x-msvideo';
+  if (lowerName.endsWith(".mp4")) return "video/mp4";
+  if (lowerName.endsWith(".mov")) return "video/quicktime";
+  if (lowerName.endsWith(".webm")) return "video/webm";
+  if (lowerName.endsWith(".avi")) return "video/x-msvideo";
 
   // Default to octet-stream to avoid misleading the API
-  return 'application/octet-stream';
+  return "application/octet-stream";
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   console.log("🔍 Gemini API route called - Method:", req.method);
 
   if (req.method !== "POST") {
@@ -136,109 +162,127 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
     // 1. Upload Files to Gemini (Manual Resumable Upload)
-    const uploadPromises = audioFiles.map(async (file: { filename: string; data: string }, index: number) => {
-      // Create a temporary file
-      const tempDir = os.tmpdir();
-      const randomId = crypto.randomBytes(8).toString('hex');
-      const ext = path.extname(file.filename) || '.mp3';
-      const tempFilePath = path.join(tempDir, `opencut_${randomId}_${index}${ext}`);
+    const uploadPromises = audioFiles.map(
+      async (file: { filename: string; data: string }, index: number) => {
+        // Create a temporary file
+        const tempDir = os.tmpdir();
+        const randomId = crypto.randomBytes(8).toString("hex");
+        const ext = path.extname(file.filename) || ".mp3";
+        const tempFilePath = path.join(
+          tempDir,
+          `opencut_${randomId}_${index}${ext}`
+        );
 
-      // Write base64 data to temp file
-      await fs.writeFile(tempFilePath, file.data, 'base64');
-      tempFiles.push(tempFilePath);
+        // Write base64 data to temp file
+        await fs.writeFile(tempFilePath, file.data, "base64");
+        tempFiles.push(tempFilePath);
 
-      // Get File Stats and MIME type
-      const stats = await fs.stat(tempFilePath);
+        // Get File Stats and MIME type
+        const stats = await fs.stat(tempFilePath);
 
-      // CRITICAL FIX: Calculate MimeType here and reuse it later
-      const detectedMimeType = getMimeType(file.filename);
-      const fileSize = stats.size;
+        // CRITICAL FIX: Calculate MimeType here and reuse it later
+        const detectedMimeType = getMimeType(file.filename);
+        const fileSize = stats.size;
 
-      console.log(`🔍 Starting Resumable Upload for: ${file.filename} (${fileSize} bytes, ${detectedMimeType})`);
+        console.log(
+          `🔍 Starting Resumable Upload for: ${file.filename} (${fileSize} bytes, ${detectedMimeType})`
+        );
 
-      // Initiate Resumable Upload
-      const initiateUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`;
-      const initiateResponse = await fetch(initiateUrl, {
-        method: "POST",
-        headers: {
-          "X-Goog-Upload-Protocol": "resumable",
-          "X-Goog-Upload-Command": "start",
-          "X-Goog-Upload-Header-Content-Length": fileSize.toString(),
-          "X-Goog-Upload-Mime-Type": detectedMimeType, // Use detected type
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ file: { display_name: file.filename } }),
-      });
+        // Initiate Resumable Upload
+        const initiateUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`;
+        const initiateResponse = await fetch(initiateUrl, {
+          method: "POST",
+          headers: {
+            "X-Goog-Upload-Protocol": "resumable",
+            "X-Goog-Upload-Command": "start",
+            "X-Goog-Upload-Header-Content-Length": fileSize.toString(),
+            "X-Goog-Upload-Mime-Type": detectedMimeType, // Use detected type
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ file: { display_name: file.filename } }),
+        });
 
-      if (!initiateResponse.ok) {
-        const errorText = await initiateResponse.text();
-        throw new Error(`Failed to initiate upload: ${initiateResponse.statusText} - ${errorText}`);
+        if (!initiateResponse.ok) {
+          const errorText = await initiateResponse.text();
+          throw new Error(
+            `Failed to initiate upload: ${initiateResponse.statusText} - ${errorText}`
+          );
+        }
+
+        const uploadUrl = initiateResponse.headers.get("x-goog-upload-url");
+        if (!uploadUrl) {
+          throw new Error("Failed to get upload URL from initiation response");
+        }
+
+        // Upload File Bytes
+        const fileBuffer = await fs.readFile(tempFilePath);
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "POST",
+          headers: {
+            "Content-Length": fileSize.toString(),
+            "X-Goog-Upload-Offset": "0",
+            "X-Goog-Upload-Command": "upload, finalize",
+          },
+          body: fileBuffer as any,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          throw new Error(
+            `Failed to upload file bytes: ${uploadResponse.statusText} - ${errorText}`
+          );
+        }
+
+        const uploadResult = await uploadResponse.json();
+        console.log(
+          `✅ Uploaded ${file.filename} -> URI: ${uploadResult.file.uri}`
+        );
+
+        return {
+          filename: file.filename,
+          uri: uploadResult.file.uri,
+          name: uploadResult.file.name,
+          mimeType: detectedMimeType, // CRITICAL: Pass the detected mime type forward
+        };
       }
-
-      const uploadUrl = initiateResponse.headers.get("x-goog-upload-url");
-      if (!uploadUrl) {
-        throw new Error("Failed to get upload URL from initiation response");
-      }
-
-      // Upload File Bytes
-      const fileBuffer = await fs.readFile(tempFilePath);
-      const uploadResponse = await fetch(uploadUrl, {
-        method: "POST",
-        headers: {
-          "Content-Length": fileSize.toString(),
-          "X-Goog-Upload-Offset": "0",
-          "X-Goog-Upload-Command": "upload, finalize",
-        },
-        body: fileBuffer as any,
-      });
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Failed to upload file bytes: ${uploadResponse.statusText} - ${errorText}`);
-      }
-
-      const uploadResult = await uploadResponse.json();
-      console.log(`✅ Uploaded ${file.filename} -> URI: ${uploadResult.file.uri}`);
-
-      return {
-        filename: file.filename,
-        uri: uploadResult.file.uri,
-        name: uploadResult.file.name,
-        mimeType: detectedMimeType // CRITICAL: Pass the detected mime type forward
-      };
-    });
+    );
 
     const uploadedFiles = await Promise.all(uploadPromises);
 
     // 2. Wait for Files to be Active (Polling)
     console.log("🔍 Waiting for files to process...");
-    await Promise.all(uploadedFiles.map(async (file) => {
-      let state = "PROCESSING";
-      while (state === "PROCESSING") {
-        const statusUrl = `https://generativelanguage.googleapis.com/v1beta/files/${file.name.split('/').pop()}?key=${GEMINI_API_KEY}`;
-        const statusResponse = await fetch(statusUrl);
+    await Promise.all(
+      uploadedFiles.map(async (file) => {
+        let state = "PROCESSING";
+        while (state === "PROCESSING") {
+          const statusUrl = `https://generativelanguage.googleapis.com/v1beta/files/${file.name
+            .split("/")
+            .pop()}?key=${GEMINI_API_KEY}`;
+          const statusResponse = await fetch(statusUrl);
 
-        if (!statusResponse.ok) {
-          console.warn(`⚠️ Failed to check status for ${file.filename}, retrying...`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          continue;
+          if (!statusResponse.ok) {
+            console.warn(
+              `⚠️ Failed to check status for ${file.filename}, retrying...`
+            );
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
+
+          const statusData = await statusResponse.json();
+          state = statusData.state;
+
+          if (state === "PROCESSING") {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } else if (state === "FAILED") {
+            throw new Error(`File processing failed for ${file.filename}`);
+          }
         }
-
-        const statusData = await statusResponse.json();
-        state = statusData.state;
-
-        if (state === "PROCESSING") {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } else if (state === "FAILED") {
-          throw new Error(`File processing failed for ${file.filename}`);
-        }
-      }
-      console.log(`✅ File ready: ${file.filename}`);
-    }));
-
+        console.log(`✅ File ready: ${file.filename}`);
+      })
+    );
 
     // 3. Construct Prompt with Strict Timing Rules
-    const realFilenames = uploadedFiles.map(f => f.filename).join(', ');
+    const realFilenames = uploadedFiles.map((f) => f.filename).join(", ");
     const filenameInstruction = `
 IMPORTANT: The audio files you are analyzing are named: [${realFilenames}].
 When you respond, the "source_file" field in your JSON *must* exactly match one of these names.
@@ -259,18 +303,21 @@ CRITICAL TIMING INSTRUCTIONS:
     let modelUsed: string | null = null;
 
     // Debug logs before generating content
-    console.log("🔍 DEBUG - Files passed to generateContent:", uploadedFiles.map(f => ({ name: f.filename, mime: f.mimeType })));
+    console.log(
+      "🔍 DEBUG - Files passed to generateContent:",
+      uploadedFiles.map((f) => ({ name: f.filename, mime: f.mimeType }))
+    );
 
     const contentParts = [
       ...uploadedFiles.map((f: any) => {
         return {
           fileData: {
             mimeType: "audio/mpeg", // Forced audio/mpeg as per instruction
-            fileUri: f.uri
-          }
+            fileUri: f.uri,
+          },
         };
       }),
-      { text: fullPrompt }
+      { text: fullPrompt },
     ];
 
     for (const modelName of MODELS) {
@@ -283,14 +330,16 @@ CRITICAL TIMING INSTRUCTIONS:
             responseMimeType: "application/json",
             // @ts-ignore - Schema typing can be tricky with different SDK versions
             responseSchema: autoCutSchema,
-          }
+          },
         });
 
         result = await model.generateContent({
-          contents: [{
-            role: "user",
-            parts: contentParts as any
-          }]
+          contents: [
+            {
+              role: "user",
+              parts: contentParts as any,
+            },
+          ],
         });
 
         modelUsed = modelName;
@@ -308,39 +357,52 @@ CRITICAL TIMING INSTRUCTIONS:
 
     // 5. Parse Response
     const responseText = result.response.text();
-    console.log("🔍 Raw Gemini Response:", responseText.substring(0, 200) + "...");
+    console.log(
+      "🔍 Raw Gemini Response:",
+      responseText.substring(0, 200) + "..."
+    );
 
     const parsedResponse = JSON.parse(responseText);
-    console.log("🔍 [DEBUG] FULL GEMINI RESPONSE:\n", JSON.stringify(parsedResponse, null, 2));
+    console.log(
+      "🔍 [DEBUG] FULL GEMINI RESPONSE:\n",
+      JSON.stringify(parsedResponse, null, 2)
+    );
 
     // 6. Cleanup Local Temp Files
-    await Promise.all(tempFiles.map(p => fs.unlink(p).catch(e => console.error("Failed to delete temp file:", p, e))));
+    await Promise.all(
+      tempFiles.map((p) =>
+        fs
+          .unlink(p)
+          .catch((e) => console.error("Failed to delete temp file:", p, e))
+      )
+    );
 
     res.status(200).json({ mock: false, data: parsedResponse });
-
   } catch (error: any) {
     console.error("❌ Error in Gemini File API flow:", error);
     // Cleanup on error
-    tempFiles.forEach(p => fs.unlink(p).catch(() => { }));
+    tempFiles.forEach((p) => fs.unlink(p).catch(() => {}));
 
     // Return mock only if everything fails
     res.status(200).json({
       mock: true,
       data: getMockSegments(),
-      error: error.message
+      error: error.message,
     });
   }
 }
 
-function getMockSegments(audioFiles?: Array<{ filename: string; data: string }>): AutoCutResponse {
+function getMockSegments(
+  audioFiles?: Array<{ filename: string; data: string }>
+): AutoCutResponse {
   // Mock data implementation...
   return {
     metadata: {
       total_duration: 10,
       segment_count: 0,
       takes_used: [],
-      quality_warnings: ["Mock Data"]
+      quality_warnings: ["Mock Data"],
     },
-    segments: []
+    segments: [],
   };
 }

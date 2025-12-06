@@ -314,6 +314,9 @@ async function applyCutsToTimeline(
     const { mediaItem } = originalElementData;
     const rawDuration = segment.end_sec - segment.start_sec;
     const cleanDuration = Math.round(rawDuration * 10000) / 10000;
+    const sourceDuration = mediaItem.duration ?? cleanDuration;
+    const trimStart = Math.max(0, segment.start_sec);
+    const trimEnd = Math.max(0, sourceDuration - segment.end_sec);
 
     // Create a unique ID for this new "virtual" media item
     const newMediaItemId = crypto.randomUUID();
@@ -328,8 +331,9 @@ async function applyCutsToTimeline(
         url: mediaItem.url, // Reference the same URL
         thumbnailUrl: mediaItem.thumbnailUrl,
         extractedAudioUrl: mediaItem.extractedAudioUrl,
-        duration: cleanDuration, // Duration of the CUT
-        startTime: segment.start_sec, // Start time in the source file
+        duration: sourceDuration, // Keep source duration so trims stay accurate
+        cutDuration: cleanDuration, // Explicit cut duration for UI/ghost width
+        startTime: trimStart, // Start time in the source file
         width: mediaItem.width,
         height: mediaItem.height,
         fps: mediaItem.fps,
