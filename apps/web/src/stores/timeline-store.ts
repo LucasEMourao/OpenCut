@@ -525,8 +525,8 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         ...elementData,
         id: generateUUID(),
         startTime: elementData.startTime || 0,
-        trimStart: 0,
-        trimEnd: 0,
+        trimStart: elementData.trimStart || 0,
+        trimEnd: elementData.trimEnd || 0,
       } as TimelineElement; // Type assertion since we trust the caller passes valid data
 
       // If this is the first element and it's a media element, automatically set the project canvas size
@@ -1422,8 +1422,18 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
 
     addMediaAtTime: (item, currentTime = 0) => {
       const trackType = item.type === "audio" ? "audio" : "media";
-      const duration =
+      const sourceDuration =
         item.duration || TIMELINE_CONSTANTS.DEFAULT_IMAGE_DURATION;
+
+      const trimStart = item.startTime || 0;
+      const cutDuration = item.cutDuration;
+      let trimEnd = 0;
+
+      if (cutDuration) {
+        trimEnd = Math.max(0, sourceDuration - trimStart - cutDuration);
+      }
+
+      const visibleDuration = cutDuration || sourceDuration;
 
       // Get all tracks of the right type
       const tracks = get()._tracks.filter((t) => t.type === trackType);
@@ -1431,7 +1441,7 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
       // Try to find a track with no overlap
       let targetTrackId = null;
       for (const track of tracks) {
-        if (!get().checkElementOverlap(track.id, currentTime, duration)) {
+        if (!get().checkElementOverlap(track.id, currentTime, visibleDuration)) {
           targetTrackId = track.id;
           break;
         }
@@ -1446,10 +1456,10 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         type: "media",
         mediaId: item.id,
         name: item.name,
-        duration,
+        duration: sourceDuration,
         startTime: currentTime,
-        trimStart: 0,
-        trimEnd: 0,
+        trimStart: trimStart,
+        trimEnd: trimEnd,
       });
       return true;
     },
@@ -1485,14 +1495,24 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
       const trackType = item.type === "audio" ? "audio" : "media";
       const targetTrackId = get().findOrCreateTrack(trackType);
 
+      const sourceDuration =
+        item.duration || TIMELINE_CONSTANTS.DEFAULT_IMAGE_DURATION;
+      const trimStart = item.startTime || 0;
+      const cutDuration = item.cutDuration;
+      let trimEnd = 0;
+
+      if (cutDuration) {
+        trimEnd = Math.max(0, sourceDuration - trimStart - cutDuration);
+      }
+
       get().addElementToTrack(targetTrackId, {
         type: "media",
         mediaId: item.id,
         name: item.name,
-        duration: item.duration || TIMELINE_CONSTANTS.DEFAULT_IMAGE_DURATION,
+        duration: sourceDuration,
         startTime: 0,
-        trimStart: 0,
-        trimEnd: 0,
+        trimStart: trimStart,
+        trimEnd: trimEnd,
       });
       return true;
     },

@@ -1,6 +1,7 @@
 import { useState, RefObject } from "react";
 import { TimelineTrack } from "@/types/timeline";
 import { useTimelineStore } from "@/stores/timeline-store";
+import { useMediaStore } from "@/stores/media-store";
 import { useShallow } from "zustand/react/shallow";
 import {
     TIMELINE_CONSTANTS,
@@ -139,14 +140,29 @@ export function useTimelineDrag({
             });
         } else {
             // Media (video, image, audio)
+            const mediaStore = useMediaStore.getState();
+            const mediaItem = mediaStore.mediaItems.find(
+                (item) => item.id === externalDragItem.id
+            );
+
+            const trimStart = mediaItem?.startTime || 0;
+            const cutDuration = mediaItem?.cutDuration;
+            const sourceDuration =
+                mediaItem?.duration || externalDragItem.duration || 5;
+
+            let trimEnd = 0;
+            if (cutDuration) {
+                trimEnd = Math.max(0, sourceDuration - trimStart - cutDuration);
+            }
+
             addElementToTrack(ghostState.trackId, {
                 type: "media",
                 mediaId: externalDragItem.id,
                 name: externalDragItem.name,
-                duration: externalDragItem.duration || 5,
+                duration: sourceDuration,
                 startTime: ghostState.time,
-                trimStart: 0,
-                trimEnd: 0,
+                trimStart: trimStart,
+                trimEnd: trimEnd,
             });
         }
 

@@ -18,6 +18,8 @@ export interface MediaFileData {
   width?: number;
   height?: number;
   duration?: number;
+  startTime?: number; // For virtual clips (cuts)
+  cutDuration?: number; // For virtual clips (cuts)
   // File will be stored separately in OPFS
 }
 

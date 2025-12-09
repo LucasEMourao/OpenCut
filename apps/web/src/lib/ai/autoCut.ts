@@ -129,67 +129,43 @@ async function analyzeAudioWithAI(
   audioFiles: Array<{ filename: string; data: string }>,
   onProgress?: (percent: number) => void
 ): Promise<AutoCutResponse> {
-  const systemPrompt = `You are a professional video editing assistant specialized in social media content creation. Your task is to analyze multiple audio takes and generate a precise editing blueprint for stitching the optimal TikTok video.
+  const systemPrompt = `You are an elite video editor for TikTok/Reels/Shorts. Your goal is to create a fast-paced, high-retention video from raw footage.
 
-Inputs: Multiple audio files (MP3/WAV).
+  ### 1. AUDIO CLEANING RULES (The "Noise Filter")
+  - � **BAD NOISE (REJECT):** ANY segment with distinct environmental pollution must be cut.
+    - Car/Motorcycle engines passing by.
+    - Wind blowing into the mic.
+    - Dogs barking or distant construction.
+  - ✅ **GOOD NOISE (KEEP):** You MUST preserve "Diegetic" sounds that match the visual action.
+    - Tearing cardboard/tape (Unboxing).
+    - Rustling plastic/sachets (ASMR).
+    - Tapping on objects.
+    - *Reason:* These sounds add texture and satisfaction. Do not treat them as dirt.
 
-Processing Requirements:
-- Transcribe with word-level timestamps
-- Analyze each take for:
-  - Vocal clarity (signal-to-noise ratio)
-  - Speech fluency (pauses, stutters, pace consistency)
-  - Emotional tone (energy, enthusiasm)
-  - Background noise levels
-- Identify cleanest segments using priority: Clarity > Emotion > Noise
+  ### 2. EDITORIAL RULES (The "Director's Cut")
+  - 🔁 **DEDUPLICATION (CRITICAL):** The speaker often repeats phrases to correct themselves.
+    - *Scenario:* Speaker says "I think that... wait... I think that this is cool."
+    - *Action:* You must detect that these are the same semantic idea. KEEP ONLY THE LAST/BEST VERSION. Discard the false start.
+  - ✂️ **Sentence Completeness:** Do not cut a segment mid-word or leave a sentence hanging without a conclusion, unless it's a stylistic fast cut.
 
-Segment Selection:
-- Create a seamless narrative flow by selecting best segments in this order:
-  - Intro
-  - Key message
-  - Punchline/Call-to-action
-- Minimize transitions between different takes
-- Ensure segments connect with natural pauses (minimum 200ms buffer between segments)
+  ### 3. PACING
+  - Remove "Dead Air": Silence longer than 0.5s should be cut, UNLESS there is a sound of unpacking/showing a product during that silence.
 
-Edge Case Handling:
-- If no perfect segment exists:
-  - Prioritize clarity over emotional delivery for informational content
-  - Prioritize energy over perfection for emotional/persuasive content
-  - Flag segments requiring audio cleanup in output JSON
-
-Output JSON: A valid JSON object with the following structure:
-{
-  "metadata": {
-    "total_duration": "number",
-    "segment_count": "number",
-    "takes_used": "array of strings (the filenames of audio files that contain the selected segments)",
-    "quality_warnings": "array of strings (any quality issues detected)"
-  },
-  "segments": [
-    {
-      "segment_id": "number",
-      "source_file": "string (must match one of the provided filenames exactly)",
-      "start_sec": "number",
-      "end_sec": "number",
-      "content": "string (a brief transcript of the segment)",
-      "selection_reason": "string (why this segment was chosen)",
-      "transition_in": "string (e.g., 'cut' or 'fade')",
-      "transition_out": "string (e.g., 'cut' or 'fade')"
-    }
-  ]
-}
-
-Technical Constraints:
-- Time precision: ±100ms
-- Duration tolerance: Final video must be 150s ± 40s
-
-Special Instructions:
-- Include 50ms buffer before/after speech in timestamps
-- Flag any segments requiring manual audio cleanup
-- Optimize for TikTok's algorithm: strongest hook in first 3 seconds
-- Reject segments with:
-  - Background speech
-  - 200ms silent pauses
-  - Distortion/clipping`;
+  ### Output Format (Strict JSON):
+  {
+    "segments": [
+      {
+        "segment_id": number,
+        "source_file": "string",
+        "start_sec": number,
+        "end_sec": number,
+        "content": "transcript",
+        "selection_reason": "Explain WHY this was chosen (e.g. 'Best take of this phrase', 'Satisfying ASMR action')",
+        "transition_in": "cut",
+        "transition_out": "cut"
+      }
+    ]
+  }`;
 
   const userPrompt = `Analyze the provided audio files and generate optimal cut suggestions for creating an engaging TikTok video.`;
 
@@ -328,8 +304,9 @@ async function applyCutsToTimeline(
         url: mediaItem.url, // Reference the same URL
         thumbnailUrl: mediaItem.thumbnailUrl,
         extractedAudioUrl: mediaItem.extractedAudioUrl,
-        duration: cleanDuration, // Duration of the CUT
+        duration: mediaItem.duration, // Use ORIGINAL source duration
         startTime: segment.start_sec, // Start time in the source file
+        cutDuration: cleanDuration, // Duration of the virtual cut
         width: mediaItem.width,
         height: mediaItem.height,
         fps: mediaItem.fps,
