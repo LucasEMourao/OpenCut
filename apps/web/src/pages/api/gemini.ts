@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -39,7 +40,7 @@ interface AutoCutResponse {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Model Priority List - Strictly as requested
-const MODELS = ["gemini-3.0-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+const MODELS = ["gemini-3.0-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
 
 // Strict Schema Definition for Structured Output
 const autoCutSchema = {
@@ -115,19 +116,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const tempFiles: string[] = [];
 
   try {
-    const { audioFiles, systemPrompt, userPrompt } = req.body;
+    // 2. Rename: audioFiles -> mediaFiles to support generic media (Step 1)
+    const { mediaFiles, systemPrompt, userPrompt } = req.body;
 
-    if (!audioFiles || !Array.isArray(audioFiles) || audioFiles.length === 0) {
-      return res.status(400).json({ error: "audioFiles array is required" });
+    // Fallback for older frontend clients that might still send audioFiles
+    const inputFiles = mediaFiles || req.body.audioFiles;
+
+    if (!inputFiles || !Array.isArray(inputFiles) || inputFiles.length === 0) {
+      return res.status(400).json({ error: "mediaFiles array is required" });
     }
 
-    console.log(`🔍 Processing ${audioFiles.length} audio files...`);
+    console.log(`🔍 Processing ${inputFiles.length} media files...`);
 
     // Initialize Google SDK
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    // 2. Initialize FileManager (Step 2)
+    const fileManager = new GoogleAIFileManager(GEMINI_API_KEY);
 
-    // 1. Upload Files to Gemini (Manual Resumable Upload)
-    const uploadPromises = audioFiles.map(async (file: { filename: string; data: string }, index: number) => {
+    // 1. Upload Files to Gemini (SDK Method)
+    const uploadPromises = inputFiles.map(async (file: { filename: string; data: string }, index: number) => {
       // Create a temporary file
       const tempDir = os.tmpdir();
       const randomId = crypto.randomBytes(8).toString('hex');
@@ -138,90 +145,70 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await fs.writeFile(tempFilePath, file.data, 'base64');
       tempFiles.push(tempFilePath);
 
-      // Get File Stats and MIME type
+      // Get MIME type
+      const detectedMimeType = getMimeType(file.filename);
       const stats = await fs.stat(tempFilePath);
 
-      // CRITICAL FIX: Calculate MimeType here and reuse it later
-      const detectedMimeType = getMimeType(file.filename);
-      const fileSize = stats.size;
+      // Sanitize Filename for Display Name (Keep alphanumeric and extension)
+      const cleanFilename = file.filename.replace(/[^a-zA-Z0-9.]/g, '_');
 
-      console.log(`🔍 Starting Resumable Upload for: ${file.filename} (${fileSize} bytes, ${detectedMimeType})`);
+      console.log(`🔍 Starting SDK Upload for: ${file.filename} as ${cleanFilename} (${stats.size} bytes, ${detectedMimeType})`);
 
-      // Initiate Resumable Upload
-      const initiateUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`;
-      const initiateResponse = await fetch(initiateUrl, {
-        method: "POST",
-        headers: {
-          "X-Goog-Upload-Protocol": "resumable",
-          "X-Goog-Upload-Command": "start",
-          "X-Goog-Upload-Header-Content-Length": fileSize.toString(),
-          "X-Goog-Upload-Mime-Type": detectedMimeType, // Use detected type
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ file: { display_name: file.filename } }),
+      // 3. Use fileManager.uploadFile (Step 2)
+      const uploadResponse = await fileManager.uploadFile(tempFilePath, {
+        mimeType: detectedMimeType,
+        displayName: cleanFilename,
       });
 
-      if (!initiateResponse.ok) {
-        const errorText = await initiateResponse.text();
-        throw new Error(`Failed to initiate upload: ${initiateResponse.statusText} - ${errorText}`);
-      }
-
-      const uploadUrl = initiateResponse.headers.get("x-goog-upload-url");
-      if (!uploadUrl) {
-        throw new Error("Failed to get upload URL from initiation response");
-      }
-
-      // Upload File Bytes
-      const fileBuffer = await fs.readFile(tempFilePath);
-      const uploadResponse = await fetch(uploadUrl, {
-        method: "POST",
-        headers: {
-          "Content-Length": fileSize.toString(),
-          "X-Goog-Upload-Offset": "0",
-          "X-Goog-Upload-Command": "upload, finalize",
-        },
-        body: fileBuffer as any,
-      });
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Failed to upload file bytes: ${uploadResponse.statusText} - ${errorText}`);
-      }
-
-      const uploadResult = await uploadResponse.json();
-      console.log(`✅ Uploaded ${file.filename} -> URI: ${uploadResult.file.uri}`);
+      console.log(`✅ Uploaded ${file.filename} -> URI: ${uploadResponse.file.uri}`);
 
       return {
         filename: file.filename,
-        uri: uploadResult.file.uri,
-        name: uploadResult.file.name,
-        mimeType: detectedMimeType // CRITICAL: Pass the detected mime type forward
+        uri: uploadResponse.file.uri,
+        name: uploadResponse.file.name,
+        mimeType: detectedMimeType
       };
     });
 
     const uploadedFiles = await Promise.all(uploadPromises);
 
-    // 2. Wait for Files to be Active (Polling)
+    // 2. Wait for Files to be Active (Polling with SDK)
     console.log("🔍 Waiting for files to process...");
     await Promise.all(uploadedFiles.map(async (file) => {
-      let state = "PROCESSING";
-      while (state === "PROCESSING") {
-        const statusUrl = `https://generativelanguage.googleapis.com/v1beta/files/${file.name.split('/').pop()}?key=${GEMINI_API_KEY}`;
-        const statusResponse = await fetch(statusUrl);
+      let state = FileState.PROCESSING;
+      let retryCount = 0;
+      const MAX_RETRIES = 60; // ~5 minutes max wait
 
-        if (!statusResponse.ok) {
-          console.warn(`⚠️ Failed to check status for ${file.filename}, retrying...`);
+      while (state === FileState.PROCESSING) {
+        if (retryCount >= MAX_RETRIES) {
+          throw new Error(`Timeout: File processing took too long for ${file.filename}`);
+        }
+        retryCount++;
+
+        try {
+          // 4. Use fileManager.getFile (Step 2)
+          const fileStatus = await fileManager.getFile(file.name);
+          state = fileStatus.state;
+
+          if (state === FileState.PROCESSING) {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Standard 2s wait
+          } else if (state === FileState.FAILED) {
+            throw new Error(`File processing failed for ${file.filename}`);
+          }
+        } catch (error: any) {
+          const errorMessage = error?.message || String(error);
+          const isNetworkError = errorMessage.includes("500") || errorMessage.includes("JSON");
+
+          if (isNetworkError) {
+            console.warn(`⚠️ Transient API Error (500/JSON) for ${file.filename}. Retrying in 5s... (${retryCount}/${MAX_RETRIES})`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Longer wait for 500s
+            continue;
+          }
+
+          // For other errors, log and retry with standard delay
+          console.warn(`⚠️ Status check error for ${file.filename}, retrying in 2s...`, error);
           await new Promise(resolve => setTimeout(resolve, 2000));
           continue;
-        }
-
-        const statusData = await statusResponse.json();
-        state = statusData.state;
-
-        if (state === "PROCESSING") {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } else if (state === "FAILED") {
-          throw new Error(`File processing failed for ${file.filename}`);
         }
       }
       console.log(`✅ File ready: ${file.filename}`);
@@ -231,7 +218,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 3. Construct Prompt with Strict Timing Rules
     const realFilenames = uploadedFiles.map(f => f.filename).join(', ');
     const filenameInstruction = `
-IMPORTANT: The audio files you are analyzing are named: [${realFilenames}].
+IMPORTANT: The media files you are analyzing are named: [${realFilenames}].
 When you respond, the "source_file" field in your JSON *must* exactly match one of these names.
 DO NOT use example filenames like "take_1.mp3" or "take_3.mp3" from the prompt examples.
 Your response must contain ONLY valid JSON with source_file values that match the provided filenames: [${realFilenames}]`;
@@ -239,8 +226,8 @@ Your response must contain ONLY valid JSON with source_file values that match th
     const TIMING_RULES = `
 CRITICAL TIMING INSTRUCTIONS:
 1. PADDING: You MUST subtract 0.1s from the actual start time and add 0.1s to the actual end time of every segment.
-2. NEVER cut in the middle of a word. If a sentence boundary is unclear, extend the segment to include the silence/breath.
-3. PRECISION: Be extremely conservative. It is better to include 0.5s of silence than to cut 0.1s of a word.
+2. NEVER cut in the middle of a word or action. If a boundary is unclear, extend the segment.
+3. PRECISION: Be extremely conservative. It is better to include 0.5s of silence than to cut 0.1s of content.
 `;
 
     const fullPrompt = `${systemPrompt}\n\n${filenameInstruction}\n\n${TIMING_RULES}\n\n${userPrompt}`;
@@ -256,7 +243,7 @@ CRITICAL TIMING INSTRUCTIONS:
       ...uploadedFiles.map((f: any) => {
         return {
           fileData: {
-            mimeType: "audio/mpeg", // Forced audio/mpeg as per instruction
+            mimeType: f.mimeType, // Use actual mime type (video/audio)
             fileUri: f.uri
           }
         };

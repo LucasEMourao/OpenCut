@@ -1,5 +1,5 @@
 import { MediaItem } from "@/stores/media-store";
-import { extractAudio } from "../ffmpeg-utils";
+import { extractAudio, initFFmpeg } from "../ffmpeg-utils";
 import { uploadJsonWithProgress } from "../media-processing";
 import { useTimelineStore } from "@/stores/timeline-store";
 import { useMediaStore } from "@/stores/media-store";
@@ -129,43 +129,68 @@ async function analyzeAudioWithAI(
   audioFiles: Array<{ filename: string; data: string }>,
   onProgress?: (percent: number) => void
 ): Promise<AutoCutResponse> {
-  const systemPrompt = `You are an elite video editor for TikTok/Reels/Shorts. Your goal is to create a fast-paced, high-retention video from raw footage.
+  const systemPrompt = `You are a professional video editing assistant specialized in social media content creation. Your task is to analyze multiple audio takes and generate a precise editing blueprint for stitching the optimal TikTok video.
 
-  ### 1. AUDIO CLEANING RULES (The "Noise Filter")
-  - � **BAD NOISE (REJECT):** ANY segment with distinct environmental pollution must be cut.
-    - Car/Motorcycle engines passing by.
-    - Wind blowing into the mic.
-    - Dogs barking or distant construction.
-  - ✅ **GOOD NOISE (KEEP):** You MUST preserve "Diegetic" sounds that match the visual action.
-    - Tearing cardboard/tape (Unboxing).
-    - Rustling plastic/sachets (ASMR).
-    - Tapping on objects.
-    - *Reason:* These sounds add texture and satisfaction. Do not treat them as dirt.
+  Inputs: Multiple audio files (MP3/WAV).
 
-  ### 2. EDITORIAL RULES (The "Director's Cut")
-  - 🔁 **DEDUPLICATION (CRITICAL):** The speaker often repeats phrases to correct themselves.
-    - *Scenario:* Speaker says "I think that... wait... I think that this is cool."
-    - *Action:* You must detect that these are the same semantic idea. KEEP ONLY THE LAST/BEST VERSION. Discard the false start.
-  - ✂️ **Sentence Completeness:** Do not cut a segment mid-word or leave a sentence hanging without a conclusion, unless it's a stylistic fast cut.
+  Processing Requirements:
+  - Transcribe with word-level timestamps
+  - Analyze each take for:
+    - Vocal clarity (signal-to-noise ratio)
+    - Speech fluency (pauses, stutters, pace consistency)
+    - Emotional tone (energy, enthusiasm)
+    - Background noise levels
+  - Identify cleanest segments using priority: Clarity > Emotion > Noise
 
-  ### 3. PACING
-  - Remove "Dead Air": Silence longer than 0.5s should be cut, UNLESS there is a sound of unpacking/showing a product during that silence.
+  Segment Selection:
+  - Create a seamless narrative flow by selecting best segments in this order:
+    - Intro
+    - Key message
+    - Punchline/Call-to-action
+  - Minimize transitions between different takes
+  - **CRITICAL EXCEPTION:** You MUST SELECT and PRESERVE segments containing "Product Interaction Sounds" (opening boxes, tearing tape, rustling sachets/plastic, tapping). These are considered valid content (ASMR), NOT background noise.
 
-  ### Output Format (Strict JSON):
+  Edge Case Handling:
+  - If no perfect segment exists:
+    - Prioritize clarity over emotional delivery for informational content
+    - Prioritize energy over perfection for emotional/persuasive content
+    - Flag segments requiring audio cleanup in output JSON
+
+  Output JSON: A valid JSON object with the following structure:
   {
+    "metadata": {
+      "total_duration": "number",
+      "segment_count": "number",
+      "takes_used": ["filename"],
+      "quality_warnings": ["string"]
+    },
     "segments": [
       {
-        "segment_id": number,
+        "segment_id": "number",
         "source_file": "string",
-        "start_sec": number,
-        "end_sec": number,
-        "content": "transcript",
-        "selection_reason": "Explain WHY this was chosen (e.g. 'Best take of this phrase', 'Satisfying ASMR action')",
-        "transition_in": "cut",
-        "transition_out": "cut"
+        "start_sec": "number",
+        "end_sec": "number",
+        "content": "string (transcript OR description of sound e.g., 'opening box')",
+        "selection_reason": "string",
+        "transition_in": "string",
+        "transition_out": "string"
       }
     ]
-  }`;
+  }
+
+  Technical Constraints:
+  - Time precision: ±100ms
+  - Duration tolerance: Final video must be 150s ± 40s
+
+  Special Instructions:
+  - Include 50ms buffer before/after speech in timestamps
+  - Flag any segments requiring manual audio cleanup
+  - Optimize for TikTok's algorithm: strongest hook in first 3 seconds
+  - **Reject segments with:**
+    - Background speech / Chatter
+    - Environmental pollution (Cars, Motorcycles, Wind, Sirens)
+    - 200ms silent pauses (UNLESS accompanied by product opening sounds)
+    - Distortion/clipping`;
 
   const userPrompt = `Analyze the provided audio files and generate optimal cut suggestions for creating an engaging TikTok video.`;
 
@@ -258,6 +283,7 @@ async function applyCutsToTimeline(
 ): Promise<void> {
   const mediaStore = useMediaStore.getState();
   const activeProject = useProjectStore.getState().activeProject;
+  const ffmpeg = await initFFmpeg();
 
   // SAFETY: Limit segments to prevent infinite loops or crashes
   const MAX_CLIPS = 50;
@@ -288,30 +314,64 @@ async function applyCutsToTimeline(
     }
 
     const { mediaItem } = originalElementData;
-    const rawDuration = segment.end_sec - segment.start_sec;
-    const cleanDuration = Math.round(rawDuration * 10000) / 10000;
+    const duration = segment.end_sec - segment.start_sec;
+    const clipName = `cut_${Date.now()}_${segment.segment_id}.mp4`;
 
-    // Create a unique ID for this new "virtual" media item
-    const newMediaItemId = crypto.randomUUID();
+    try {
+      // Write input file (if checking for performance, maybe optimizing this to not write every time if same file?)
+      // For safety/simplicity per request, we write and cut
+      const inputName = `source_${Date.now()}_${index}.mp4`;
+      await ffmpeg.writeFile(inputName, new Uint8Array(await mediaItem.file!.arrayBuffer()));
 
-    // 1. Add to Media Gallery (Virtual Item)
-    if (activeProject) {
-      await mediaStore.addMediaItem(activeProject.id, {
-        id: newMediaItemId,
-        name: `${mediaItem.name} (Cut ${index + 1})`,
-        type: mediaItem.type,
-        file: mediaItem.file, // Reference the same file
-        url: mediaItem.url, // Reference the same URL
-        thumbnailUrl: mediaItem.thumbnailUrl,
-        extractedAudioUrl: mediaItem.extractedAudioUrl,
-        duration: mediaItem.duration, // Use ORIGINAL source duration
-        startTime: segment.start_sec, // Start time in the source file
-        cutDuration: cleanDuration, // Duration of the virtual cut
-        width: mediaItem.width,
-        height: mediaItem.height,
-        fps: mediaItem.fps,
-      });
-      addedCount++;
+      await ffmpeg.exec([
+        "-i", inputName,
+        "-ss", segment.start_sec.toString(),
+        "-t", duration.toString(),
+        "-c", "copy",
+        clipName
+      ]);
+
+      const clipData = await ffmpeg.readFile(clipName);
+      const clipBlob = new Blob([clipData], { type: 'video/mp4' });
+      const clipUrl = URL.createObjectURL(clipBlob);
+
+      // Create a unique ID for this new media item
+      const newMediaItemId = crypto.randomUUID();
+
+      // 1. Add to Media Gallery (Physical Clip)
+      if (activeProject) {
+        await mediaStore.addMediaItem(activeProject.id, {
+          id: newMediaItemId,
+          name: `${mediaItem.name} (Cut ${index + 1})`,
+          type: "video",
+          file: new File([clipBlob], clipName, { type: "video/mp4" }),
+          url: clipUrl,
+          thumbnailUrl: mediaItem.thumbnailUrl, // Use original thumb for now or generate new one
+          extractedAudioUrl: undefined, // Need to re-extract if needed
+          duration: duration,
+          width: mediaItem.width,
+          height: mediaItem.height,
+          fps: mediaItem.fps,
+        });
+        addedCount++;
+      }
+
+      // Cleanup input
+      await ffmpeg.deleteFile(inputName);
+
+      // 🛑 MEMORY CLEANUP (CRITICAL FIX)
+      try {
+        await ffmpeg.deleteFile(clipName);
+        console.log(`🧹 Cleaned up memory for ${clipName}`);
+      } catch (e) {
+        console.warn('Failed to cleanup file:', e);
+      }
+
+      // Pause for GC
+      await new Promise(r => setTimeout(r, 100));
+
+    } catch (error) {
+      console.error(`Failed to process segment ${segment.segment_id}:`, error);
     }
   }
 
