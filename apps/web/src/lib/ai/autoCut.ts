@@ -1,5 +1,6 @@
 import { MediaItem } from "@/stores/media-store";
-import { extractAudio, initFFmpeg } from "../ffmpeg-utils";
+import { extractAudioLightweight } from "../audio-utils";
+import { initFFmpeg } from "../ffmpeg-utils";
 import { uploadJsonWithProgress } from "../media-processing";
 import { useTimelineStore } from "@/stores/timeline-store";
 import { useMediaStore } from "@/stores/media-store";
@@ -67,7 +68,10 @@ export async function detectAutomaticCuts(): Promise<void> {
       if (!mediaItem || !mediaItem.file) return null;
 
       // Extract audio from media file
-      const audioBlob = await extractAudio(mediaItem.file);
+      toast.loading(`Extracting audio from ${mediaItem.name}...`, { id: "auto-cut-progress" });
+
+      // Use lightweight extraction (AudioContext) instead of FFmpeg
+      const audioBlob = await extractAudioLightweight(mediaItem.file);
       const audioUrl = URL.createObjectURL(audioBlob);
 
       return {
@@ -93,17 +97,21 @@ export async function detectAutomaticCuts(): Promise<void> {
     }
 
     // Convert audio files to base64 for API request
-    const audioFiles = await Promise.all(audioData.map(async (data) => {
+    const mediaFiles = await Promise.all(audioData.map(async (data) => {
       const buffer = await data.audioBlob.arrayBuffer();
       const base64 = arrayBufferToBase64(buffer);
+      // Important: Ensure we send a .wav extension so backend MIME detection works
+      // The lightweight extractor always returns WAV
+      const filename = data.mediaItem.name.replace(/\.[^/.]+$/, "") + ".wav";
+
       return {
-        filename: data.mediaItem.name,
+        filename,
         data: base64
       };
     }));
 
     // Call the backend API to analyze audio and generate cuts
-    const cutAnalysis = await analyzeAudioWithAI(audioFiles, (percent) => {
+    const cutAnalysis = await analyzeAudioWithAI(mediaFiles, (percent) => {
       if (percent === 100) {
         toast.loading("Processing AI analysis...", { id: "auto-cut-progress" });
       } else {
@@ -126,7 +134,7 @@ export async function detectAutomaticCuts(): Promise<void> {
  * Calls the backend API to analyze audio and return cut suggestions
  */
 async function analyzeAudioWithAI(
-  audioFiles: Array<{ filename: string; data: string }>,
+  mediaFiles: Array<{ filename: string; data: string }>,
   onProgress?: (percent: number) => void
 ): Promise<AutoCutResponse> {
   const systemPrompt = `You are a professional video editing assistant specialized in social media content creation. Your task is to analyze multiple audio takes and generate a precise editing blueprint for stitching the optimal TikTok video.
@@ -142,14 +150,13 @@ async function analyzeAudioWithAI(
     - Background noise levels
   - Identify cleanest segments using priority: Clarity > Emotion > Noise
 
-  Segment Selection:
-  - Create a seamless narrative flow by selecting best segments in this order:
-    - Intro
-    - Key message
-    - Punchline/Call-to-action
+  Segment Selection RULES:
+  - **VOICE PRIORITY:** Your primary goal is to keep clear human speech. If a segment has no speech, CUT IT unless it is a vital visual reveal (< 2s).
+  - **NOISE FILTER:** Aggressively CUT non-speech segments like rustling plastic, unboxing sounds, wind, or heavy breathing. Do not treat these as ASMR; treat them as noise to be removed.
+  - **PACING:** Remove pauses longer than 0.3s between sentences to create a dynamic, fast-paced video.
+  - Create a seamless narrative flow by selecting best segments in this order: Intro -> Key message -> Punchline/Call-to-action
   - Minimize transitions between different takes
-  - **CRITICAL EXCEPTION:** You MUST SELECT and PRESERVE segments containing "Product Interaction Sounds" (opening boxes, tearing tape, rustling sachets/plastic, tapping). These are considered valid content (ASMR), NOT background noise.
-
+  
   Edge Case Handling:
   - If no perfect segment exists:
     - Prioritize clarity over emotional delivery for informational content
@@ -189,22 +196,22 @@ async function analyzeAudioWithAI(
   - **Reject segments with:**
     - Background speech / Chatter
     - Environmental pollution (Cars, Motorcycles, Wind, Sirens)
-    - 200ms silent pauses (UNLESS accompanied by product opening sounds)
+    - Silent pauses > 0.3s (Aggressively cut silence)
     - Distortion/clipping`;
 
   const userPrompt = `Analyze the provided audio files and generate optimal cut suggestions for creating an engaging TikTok video.`;
 
   console.log("🔍 analyzeAudioWithAI: Starting API call to /api/gemini");
-  console.log("🔍 analyzeAudioWithAI: Number of audio files:", audioFiles.length);
+  console.log("🔍 analyzeAudioWithAI: Number of audio files:", mediaFiles.length);
 
   console.log("🔍 analyzeAudioWithAI: Starting API call to /api/gemini");
-  console.log("🔍 analyzeAudioWithAI: Number of audio files:", audioFiles.length);
+  console.log("🔍 analyzeAudioWithAI: Number of audio files:", mediaFiles.length);
 
   try {
     const result = await uploadJsonWithProgress<any>(
       "/api/gemini",
       {
-        audioFiles,
+        mediaFiles,
         systemPrompt,
         userPrompt
       },
@@ -232,12 +239,12 @@ async function analyzeAudioWithAI(
       // Return mock data as fallback when the response structure is invalid
       return {
         metadata: {
-          total_duration: audioFiles.length * 5,
-          segment_count: audioFiles.length,
-          takes_used: audioFiles.map(f => f.filename),
+          total_duration: mediaFiles.length * 5,
+          segment_count: mediaFiles.length,
+          takes_used: mediaFiles.map(f => f.filename),
           quality_warnings: ["Invalid response structure from Gemini API"]
         },
-        segments: audioFiles.map((file, index) => ({
+        segments: mediaFiles.map((file, index) => ({
           segment_id: index + 1,
           source_file: file.filename,
           start_sec: 0.5,
@@ -254,12 +261,12 @@ async function analyzeAudioWithAI(
     // Return mock data as fallback
     return {
       metadata: {
-        total_duration: audioFiles.length * 5,
-        segment_count: audioFiles.length,
-        takes_used: audioFiles.map(f => f.filename),
+        total_duration: mediaFiles.length * 5,
+        segment_count: mediaFiles.length,
+        takes_used: mediaFiles.map(f => f.filename),
         quality_warnings: [`API Error: ${error instanceof Error ? error.message : "Unknown error"}`]
       },
-      segments: audioFiles.map((file, index) => ({
+      segments: mediaFiles.map((file, index) => ({
         segment_id: index + 1,
         source_file: file.filename,
         start_sec: 0.5,
@@ -332,7 +339,7 @@ async function applyCutsToTimeline(
       ]);
 
       const clipData = await ffmpeg.readFile(clipName);
-      const clipBlob = new Blob([clipData], { type: 'video/mp4' });
+      const clipBlob = new Blob([clipData as any], { type: 'video/mp4' });
       const clipUrl = URL.createObjectURL(clipBlob);
 
       // Create a unique ID for this new media item

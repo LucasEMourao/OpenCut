@@ -40,7 +40,7 @@ interface AutoCutResponse {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Model Priority List - Strictly as requested
-const MODELS = ["gemini-3.0-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+const MODELS = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
 
 // Strict Schema Definition for Structured Output
 const autoCutSchema = {
