@@ -169,7 +169,7 @@ export async function uploadJsonWithProgress<T>(
     xhr.setRequestHeader("Content-Type", "application/json");
 
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && onProgress) {
+      if (event.lengthComputable && typeof onProgress === "function") {
         const percent = (event.loaded / event.total) * 100;
         onProgress(percent);
       }
@@ -198,7 +198,7 @@ export async function uploadJsonWithProgress<T>(
 
     xhr.onerror = () => reject(new Error("Network error"));
 
-    if (onProgress) onProgress(0);
+    if (typeof onProgress === "function") onProgress(0);
     xhr.send(JSON.stringify(data));
   });
 }

@@ -39,8 +39,8 @@ interface AutoCutResponse {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Model Priority List - Strictly as requested
-const MODELS = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+// Model Priority List - Updated to prioritize Reasoning (Pro) + Speed (Flash 3.0)
+const MODELS = ["gemini-2.5-flash"];
 
 // Strict Schema Definition for Structured Output
 const autoCutSchema = {
@@ -223,14 +223,9 @@ When you respond, the "source_file" field in your JSON *must* exactly match one 
 DO NOT use example filenames like "take_1.mp3" or "take_3.mp3" from the prompt examples.
 Your response must contain ONLY valid JSON with source_file values that match the provided filenames: [${realFilenames}]`;
 
-    const TIMING_RULES = `
-CRITICAL TIMING INSTRUCTIONS:
-1. PADDING: You MUST subtract 0.1s from the actual start time and add 0.1s to the actual end time of every segment.
-2. NEVER cut in the middle of a word or action. If a boundary is unclear, extend the segment.
-3. PRECISION: Be extremely conservative. It is better to include 0.5s of silence than to cut 0.1s of content.
-`;
+    // REMOVED: TIMING_RULES (Managed in code now to prevent hallucinations)
 
-    const fullPrompt = `${systemPrompt}\n\n${filenameInstruction}\n\n${TIMING_RULES}\n\n${userPrompt}`;
+    const fullPrompt = `${systemPrompt}\n\n${filenameInstruction}\n\n${userPrompt}`;
 
     // 4. Call Gemini Model
     let result;

@@ -2,6 +2,7 @@ import { MediaItem } from "@/stores/media-store";
 import { extractAudioLightweight } from "../audio-utils";
 import { initFFmpeg } from "../ffmpeg-utils";
 import { uploadJsonWithProgress } from "../media-processing";
+import { sanitizeSegments } from "../segment-sanitizer"; // Import Sanitizer
 import { useTimelineStore } from "@/stores/timeline-store";
 import { useMediaStore } from "@/stores/media-store";
 import { useProjectStore } from "@/stores/project-store"; // Added import for project store
@@ -110,12 +111,15 @@ export async function detectAutomaticCuts(): Promise<void> {
       };
     }));
 
+    // Calculate total duration for sanitization
+    const totalDuration = audioData.reduce((acc, curr) => acc + (curr.mediaItem.duration || 0), 0);
+
     // Call the backend API to analyze audio and generate cuts
-    const cutAnalysis = await analyzeAudioWithAI(mediaFiles, (percent) => {
+    const cutAnalysis = await analyzeAudioWithAI(mediaFiles, totalDuration, (percent) => {
       if (percent === 100) {
         toast.loading("Processing AI analysis...", { id: "auto-cut-progress" });
       } else {
-        toast.loading(`Uploading audio... ${Math.round(percent)}%`, { id: "auto-cut-progress" });
+        toast.loading(`Uploading audio... ${Math.round(percent)}% `, { id: "auto-cut-progress" });
       }
     });
 
@@ -135,74 +139,55 @@ export async function detectAutomaticCuts(): Promise<void> {
  */
 async function analyzeAudioWithAI(
   mediaFiles: Array<{ filename: string; data: string }>,
+  totalDuration: number,
   onProgress?: (percent: number) => void
 ): Promise<AutoCutResponse> {
-  const systemPrompt = `You are a professional video editing assistant specialized in social media content creation. Your task is to analyze multiple audio takes and generate a precise editing blueprint for stitching the optimal TikTok video.
+  const formattedDuration = totalDuration.toFixed(2);
+  const systemPrompt = `Role: You are a professional video editing assistant specialized in high-retention social media content (TikTok/Reels). Your task is to analyze the media and generate a precise edit blueprint.
 
-  Inputs: Multiple audio files (MP3/WAV).
+CRITICAL CONTEXT:
 
-  Processing Requirements:
-  - Transcribe with word-level timestamps
-  - Analyze each take for:
-    - Vocal clarity (signal-to-noise ratio)
-    - Speech fluency (pauses, stutters, pace consistency)
-    - Emotional tone (energy, enthusiasm)
-    - Background noise levels
-  - Identify cleanest segments using priority: Clarity > Emotion > Noise
+Total Media Duration: ${formattedDuration} seconds.
 
-  Segment Selection RULES:
-  - **VOICE PRIORITY:** Your primary goal is to keep clear human speech. If a segment has no speech, CUT IT unless it is a vital visual reveal (< 2s).
-  - **NOISE FILTER:** Aggressively CUT non-speech segments like rustling plastic, unboxing sounds, wind, or heavy breathing. Do not treat these as ASMR; treat them as noise to be removed.
-  - **PACING:** Remove pauses longer than 0.3s between sentences to create a dynamic, fast-paced video.
-  - Create a seamless narrative flow by selecting best segments in this order: Intro -> Key message -> Punchline/Call-to-action
-  - Minimize transitions between different takes
-  
-  Edge Case Handling:
-  - If no perfect segment exists:
-    - Prioritize clarity over emotional delivery for informational content
-    - Prioritize energy over perfection for emotional/persuasive content
-    - Flag segments requiring audio cleanup in output JSON
+ABSOLUTE LIMIT: Do NOT generate any segment with an 'end_sec' greater than ${formattedDuration}.
 
-  Output JSON: A valid JSON object with the following structure:
-  {
-    "metadata": {
-      "total_duration": "number",
-      "segment_count": "number",
-      "takes_used": ["filename"],
-      "quality_warnings": ["string"]
-    },
-    "segments": [
-      {
-        "segment_id": "number",
-        "source_file": "string",
-        "start_sec": "number",
-        "end_sec": "number",
-        "content": "string (transcript OR description of sound e.g., 'opening box')",
-        "selection_reason": "string",
-        "transition_in": "string",
-        "transition_out": "string"
-      }
-    ]
-  }
+Processing Requirements:
 
-  Technical Constraints:
-  - Time precision: ±100ms
-  - Duration tolerance: Final video must be 150s ± 40s
+Audio & Visual Analysis:
 
-  Special Instructions:
-  - Include 50ms buffer before/after speech in timestamps
-  - Flag any segments requiring manual audio cleanup
-  - Optimize for TikTok's algorithm: strongest hook in first 3 seconds
-  - **Reject segments with:**
-    - Background speech / Chatter
-    - Environmental pollution (Cars, Motorcycles, Wind, Sirens)
-    - Silent pauses > 0.3s (Aggressively cut silence)
-    - Distortion/clipping`;
+Analyze vocal clarity and emotional tone.
+
+VISUAL CONTEXT RULE: If there is a pause in speech (up to 3s) where the user is performing an action (unboxing, showing a product, reacting), KEEP IT. Do not cut essential visual demonstrations just because they are silent.
+
+NOISE GATE: Prioritize clear audio, but if a segment has vital visual content + background noise, keep it (flag in quality_warnings).
+
+Segment Selection Strategy:
+
+Hook (0-3s): Select the strongest opening hook.
+
+Body: Create a seamless flow. Preserve "Lists" (e.g., listing flavors) as single blocks—do not chop them up.
+
+Narrative: Ensure the sequence: Intro -> Action/Unboxing -> Details -> Conclusion.
+
+Edge Case Handling:
+
+If the user repeats a phrase (Bad Take vs Good Take), select the one with better clarity and less noise.
+
+End of File: If the user speaks until the end, set end_sec exactly to ${formattedDuration}.
+
+EOF Sentence Integrity: If the source media file ends while the speaker is in the middle of a sentence (i.e., the transcript does not end with punctuation or a natural pause), you MUST DISCARD that incomplete fragment. Trim the segment end to the last complete sentence boundary. Never leave a hanging word like "I think it is..." at the absolute end of the edit.
+
+Output Specification (JSON): { "metadata": { "total_duration": Number, "segment_count": Number, "takes_used": [String], "quality_warnings": [String] }, "segments": [ { "segment_id": Number, "source_file": String, "start_sec": Number, "end_sec": Number, "content": String (transcription), "selection_reason": String, "transition_in": "cut", "transition_out": "jump_cut" } ] }
+
+Technical Constraints:
+
+Buffer: Include 100ms buffer before/after speech.
+
+Timestamp Sanity: end_sec must be > start_sec.
+
+Reject segments with distortion or clipping unless visually vital.`;
 
   const userPrompt = `Analyze the provided audio files and generate optimal cut suggestions for creating an engaging TikTok video.`;
-
-  console.log("🔍 analyzeAudioWithAI: Starting API call to /api/gemini");
-  console.log("🔍 analyzeAudioWithAI: Number of audio files:", mediaFiles.length);
 
   console.log("🔍 analyzeAudioWithAI: Starting API call to /api/gemini");
   console.log("🔍 analyzeAudioWithAI: Number of audio files:", mediaFiles.length);
@@ -232,6 +217,11 @@ async function analyzeAudioWithAI(
     // Check if the response has valid data structure before using it
     if (result.data && Array.isArray(result.data.segments) && result.data.segments.length > 0) {
       console.log("✅ Using real Gemini API response");
+
+      // SANITIZE RESPONSE
+      console.log("🧹 Sanitizing AI segments...");
+      result.data.segments = sanitizeSegments(result.data.segments, totalDuration);
+
       console.log("🎬 Real Gemini data applied to timeline! Segments count:", result.data.segments.length);
       return result.data;
     } else {
@@ -249,7 +239,7 @@ async function analyzeAudioWithAI(
           source_file: file.filename,
           start_sec: 0.5,
           end_sec: 4.5,
-          content: `Sample content from ${file.filename}`,
+          content: `Sample content from ${file.filename} `,
           selection_reason: "Error occurred, using default segment",
           transition_in: "cut",
           transition_out: "cut"
@@ -264,14 +254,14 @@ async function analyzeAudioWithAI(
         total_duration: mediaFiles.length * 5,
         segment_count: mediaFiles.length,
         takes_used: mediaFiles.map(f => f.filename),
-        quality_warnings: [`API Error: ${error instanceof Error ? error.message : "Unknown error"}`]
+        quality_warnings: [`API Error: ${error instanceof Error ? error.message : "Unknown error"} `]
       },
       segments: mediaFiles.map((file, index) => ({
         segment_id: index + 1,
         source_file: file.filename,
         start_sec: 0.5,
         end_sec: 4.5,
-        content: `Sample content from ${file.filename}`,
+        content: `Sample content from ${file.filename} `,
         selection_reason: "Error occurred, using default segment",
         transition_in: "cut",
         transition_out: "cut"
@@ -297,7 +287,7 @@ async function applyCutsToTimeline(
   const segmentsToProcess = cutAnalysis.segments || [];
 
   if (segmentsToProcess.length > MAX_CLIPS) {
-    console.warn(`Auto-Cut: Limiting segments from ${segmentsToProcess.length} to ${MAX_CLIPS}`);
+    console.warn(`Auto - Cut: Limiting segments from ${segmentsToProcess.length} to ${MAX_CLIPS} `);
     toast.warning(`Result limited to ${MAX_CLIPS} clips for performance`);
     segmentsToProcess.length = MAX_CLIPS;
   }
@@ -321,6 +311,23 @@ async function applyCutsToTimeline(
     }
 
     const { mediaItem } = originalElementData;
+
+    // --- 🛡️ TIMESTAMP VALIDATION (Fix Out of Bounds Hallucinations) ---
+    const sourceDuration = mediaItem.duration || 0;
+
+    // Case A: Total Hallucination (Start is beyond EOF)
+    if (segment.start_sec >= sourceDuration) {
+      console.warn(`⚠️ Skipping hallucinated segment starting after EOF: ${segment.start_sec}s >= ${sourceDuration}s`, segment);
+      continue;
+    }
+
+    // Case B: Partial Overflow (End is beyond EOF) -> Clamp it
+    if (segment.end_sec > sourceDuration) {
+      console.warn(`⚠️ Clamping segment end from ${segment.end_sec}s to ${sourceDuration}s (EOF)`);
+      segment.end_sec = sourceDuration;
+    }
+    // -------------------------------------------------------------
+
     const duration = segment.end_sec - segment.start_sec;
     const clipName = `cut_${Date.now()}_${segment.segment_id}.mp4`;
 
@@ -334,7 +341,12 @@ async function applyCutsToTimeline(
         "-i", inputName,
         "-ss", segment.start_sec.toString(),
         "-t", duration.toString(),
-        "-c", "copy",
+        // FIX: Bad Initial Frame Regression
+        // We MUST re-encode because "-c copy" fails if the cut isn't on a keyframe.
+        // "ultrafast" preset keeps it quick enough for web usage.
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-c:a", "aac",
         clipName
       ]);
 
@@ -378,7 +390,7 @@ async function applyCutsToTimeline(
       await new Promise(r => setTimeout(r, 100));
 
     } catch (error) {
-      console.error(`Failed to process segment ${segment.segment_id}:`, error);
+      console.error(`Failed to process segment ${segment.segment_id}: `, error);
     }
   }
 
