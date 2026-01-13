@@ -1,177 +1,86 @@
-<table width="100%">
-  <tr>
-    <td align="left" width="120">
-      <img src="apps/web/public/logo.png" alt="OpenCut Logo" width="100" />
-    </td>
-    <td align="right">
-      <h1>OpenCut <span style="font-size: 0.7em; font-weight: normal;">(prev AppCut)</span></h1>
-      <h3 style="margin-top: -10px;">A free, open-source video editor for web, desktop, and mobile.</h3>
-    </td>
-  </tr>
-</table>
+# 🎬 OpenCut - AI Enhanced Edition
 
-## Why?
+[![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=for-the-badge&logo=bun&logoColor=white)](https://bun.sh/)
+[![Next.js](https://img.shields.io/badge/Next.js-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-%23007ACC.svg?style=for-the-badge&logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
 
-- **Privacy**: Your videos stay on your device
-- **Free features**: Every basic feature of CapCut is paywalled now
-- **Simple**: People want editors that are easy to use - CapCut proved that
-
-## Features
-
-- Timeline-based editing
-- Multi-track support
-- Real-time preview
-- No watermarks or subscriptions
-- Analytics provided by [Databuddy](https://www.databuddy.cc?utm_source=opencut), 100% Anonymized & Non-invasive.
-- Blog powered by [Marble](https://marblecms.com?utm_source=opencut), Headless CMS.
-
-## Project Structure
-
-- `apps/web/` – Main Next.js web application
-- `src/components/` – UI and editor components
-- `src/hooks/` – Custom React hooks
-- `src/lib/` – Utility and API logic
-- `src/stores/` – State management (Zustand, etc.)
-- `src/types/` – TypeScript types
-
-## Getting Started
-
-### Prerequisites
-
-Before you begin, ensure you have the following installed on your system:
-
-- [Node.js](https://nodejs.org/en/) (v18 or later)
-- [Bun](https://bun.sh/docs/installation)
-  (for `npm` alternative)
-- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
-
-> **Note:** Docker is optional, but it's essential for running the local database and Redis services. If you're planning to run the frontend or want to contribute to frontend features, you can skip the Docker setup. If you have followed the steps below in [Setup](#setup), you're all set to go!
-
-### Setup
-
-1. Fork the repository
-2. Clone your fork locally
-3. Navigate to the web app directory: `cd apps/web`
-4. Copy `.env.example` to `.env.local`:
-
-   ```bash
-   # Unix/Linux/Mac
-   cp .env.example .env.local
-
-   # Windows Command Prompt
-   copy .env.example .env.local
-
-   # Windows PowerShell
-   Copy-Item .env.example .env.local
-   ```
-
-5. Install dependencies: `bun install`
-6. Start the development server: `bun dev`
-
-## Development Setup
-
-### Local Development
-
-1. Start the database and Redis services:
-
-   ```bash
-   # From project root
-   docker-compose up -d
-   ```
-
-2. Navigate to the web app directory:
-
-   ```bash
-   cd apps/web
-   ```
-
-3. Copy `.env.example` to `.env.local`:
-
-   ```bash
-   # Unix/Linux/Mac
-   cp .env.example .env.local
-
-   # Windows Command Prompt
-   copy .env.example .env.local
-
-   # Windows PowerShell
-   Copy-Item .env.example .env.local
-   ```
-
-4. Configure required environment variables in `.env.local`:
-
-   **Required Variables:**
-
-   ```bash
-   # Database (matches docker-compose.yaml)
-   DATABASE_URL="postgresql://opencut:opencutthegoat@localhost:5432/opencut"
-
-   # Generate a secure secret for Better Auth
-   BETTER_AUTH_SECRET="your-generated-secret-here"
-   BETTER_AUTH_URL="http://localhost:3000"
-
-   # Redis (matches docker-compose.yaml)
-   UPSTASH_REDIS_REST_URL="http://localhost:8079"
-   UPSTASH_REDIS_REST_TOKEN="example_token"
-
-   # Marble Blog
-   MARBLE_WORKSPACE_KEY=cm6ytuq9x0000i803v0isidst # example organization key
-   NEXT_PUBLIC_MARBLE_API_URL=https://api.marblecms.com
-
-   # Development
-   NODE_ENV="development"
-   ```
-
-   **Generate BETTER_AUTH_SECRET:**
-
-   ```bash
-   # Unix/Linux/Mac
-   openssl rand -base64 32
-
-   # Windows PowerShell (simple method)
-   [System.Web.Security.Membership]::GeneratePassword(32, 0)
-
-   # Cross-platform (using Node.js)
-   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-   # Or use an online generator: https://generate-secret.vercel.app/32
-   ```
-
-5. Run database migrations: `bun run db:migrate` from (inside apps/web)
-6. Start the development server: `bun run dev` from (inside apps/web)
-
-The application will be available at [http://localhost:3000](http://localhost:3000).
-
-## Contributing
-
-We welcome contributions! While we're actively developing and refactoring certain areas, there are plenty of opportunities to contribute effectively.
-
-**🎯 Focus areas:** Timeline functionality, project management, performance, bug fixes, and UI improvements outside the preview panel.
-
-**⚠️ Avoid for now:** Preview panel enhancements (fonts, stickers, effects) and export functionality - we're refactoring these with a new binary rendering approach.
-
-See our [Contributing Guide](.github/CONTRIBUTING.md) for detailed setup instructions, development guidelines, and complete focus area guidance.
-
-**Quick start for contributors:**
-
-- Fork the repo and clone locally
-- Follow the setup instructions in CONTRIBUTING.md
-- Create a feature branch and submit a PR
-
-## Sponsors
-
-Thanks to [Vercel](https://vercel.com?utm_source=github-opencut&utm_campaign=oss) for their support of open-source software.
-
-<a href="https://vercel.com/oss">
-  <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />
-</a>
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FOpenCut-app%2FOpenCut&project-name=opencut&repository-name=opencut)
-
-## License
-
-[MIT LICENSE](LICENSE)
+O **OpenCut (AI Edition)** é um editor de vídeo web de alto desempenho que utiliza Inteligência Artificial para automatizar o processo de decupagem e edição. Este projeto é um fork aprimorado do OpenCut original, onde reconstruí o núcleo de processamento para transformar a ferramenta em um assistente de edição inteligente e autônomo.
 
 ---
 
-![Star History Chart](https://api.star-history.com/svg?repos=opencut-app/opencut&type=Date)
+## 🌟 O Diferencial: Inteligência Artificial no Core
+
+O grande destaque deste fork é a camada de **Automação de Cortes**. Diferente de editores tradicionais, aqui a IA assume o papel de assistente de direção, poupando horas de trabalho manual.
+
+### 🤖 Pipeline de Corte Inteligente
+1.  **Extração de Áudio:** O sistema isola o áudio do vídeo original via FFmpeg.
+2.  **Análise Semântica (Gemini 2.5-Flash):** A IA analisa o conteúdo, identificando pausas desnecessárias, erros de fala e momentos de maior relevância.
+3.  **Orquestração de Mídia:** Traduzi o retorno da IA (JSON de timestamps) em comandos complexos de filtragem e concatenação para o motor do **FFmpeg**, garantindo cortes fluidos sem perda de sincronia.
+
+---
+
+## 🛠️ Stack Tecnológica
+
+* **Runtime:** [Bun](https://bun.sh/) (Foco em performance de I/O e execução de subprocessos rápida).
+* **Frontend:** [Next.js 15](https://nextjs.org/) (App Router & TypeScript).
+* **Gerenciamento de Monorepo:** [Turborepo](https://turbo.build/).
+* **Inteligência Artificial:** [Google Gemini 2.5-Flash](https://ai.google.dev/) (Processamento de contexto e detecção de cortes).
+* **Engine de Vídeo:** [FFmpeg](https://ffmpeg.org/) (Executado nativamente em ambiente Linux/WSL2).
+* **Autenticação & DB:** Better Auth + PostgreSQL (Prisma) + Upstash Redis.
+
+---
+
+## 🚀 Minhas Contribuições (Destaques Técnicos)
+
+Como desenvolvedor deste fork, implementei melhorias críticas para transformar a experiência de edição:
+
+* **Integração IA-Engine:** Desenvolvimento do pipeline que conecta a Gemini 2.5-Flash ao processamento de vídeo real.
+* **Refatoração da Timeline:** Reconstrução da lógica de renderização para suportar múltiplos cortes e overlays de forma fluida.
+* **UX de Processamento:** Implementação de feedbacks visuais (loading states) e barras de progresso reais para operações pesadas de exportação.
+* **Otimização de Infra:** Migração e ajuste do ecossistema para rodar em **WSL2/Ubuntu**, garantindo que o Bun orquestre o FFmpeg com latência mínima de disco.
+
+---
+
+## 💻 Configuração do Ambiente
+
+### Pré-requisitos
+* **Bun** (Runtime oficial do projeto).
+* **FFmpeg** instalado e acessível via terminal.
+* **Chave de API do Google Gemini** (Para as funções de IA).
+
+### Instalação
+
+1.  **Clone o repositório:**
+    ```bash
+    git clone [https://github.com/LucasEMourao/OpenCut.git](https://github.com/LucasEMourao/OpenCut.git)
+    cd OpenCut
+    ```
+
+2.  **Instale as dependências:**
+    ```bash
+    bun install
+    ```
+
+3.  **Configuração de Variáveis de Ambiente:**
+    Crie um arquivo `.env` dentro de `apps/web` seguindo o modelo das chaves necessárias (API Keys, Database URL e Auth Secret).
+
+4.  **Inicie o servidor de desenvolvimento:**
+    ```bash
+    bun dev
+    ```
+
+---
+
+## 🛠️ Atribuição e Créditos
+
+Este projeto é um fork aprimorado do [OpenCut](https://github.com/OpenCut-app/OpenCut) original, um editor de vídeo open-source de alta performance.
+
+**Créditos à equipe original:**
+- Desenvolvido por [OpenCut-app Team](https://github.com/OpenCut-app).
+- Mantenedores principais: [Johnny Chan](https://github.com/tsjohnnychan) e [mazeincoding](https://github.com/mazeincoding).
+
+**Minhas modificações e implementações específicas nesta versão:**
+- **AI-Powered Cuts:** Implementação total do módulo de inteligência artificial (Gemini 2.5-flash) para detecção e automação de cortes.
+- **Media Engine:** Integração dinâmica com comandos FFmpeg para exportação e processamento.
+- **UX/UI Improvements:** Refatoração da Timeline, Galeria de Mídia, e adição de indicadores de carregamento (loading states).
